@@ -136,7 +136,7 @@ async def llm_tool_call_debug(
     tool_calls: list[dict[str, Any]] = []
     tool_results: list[dict[str, Any]] = []
     registry = container.conversation._tool_registry(
-        {"id": "admin-debug", "phone_number": "", "name": "admin-debug"},
+        {"id": "admin-debug", "remoteJid": "", "name": "admin-debug"},
         sender_phone="admin-debug",
         user_mode="passenger",
     )
@@ -187,7 +187,7 @@ async def driver_service_debug(
     tool_results: list[dict[str, Any]] = []
     customer = {
         "id": "debug",
-        "phone_number": request.client_number,
+        "remoteJid": request.client_number,
         "name": "driver-debug",
     }
     registry = container.conversation._tool_registry(

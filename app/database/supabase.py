@@ -35,19 +35,19 @@ class SupabaseRepository:
     async def upsert_customer(
         self,
         *,
-        phone_number: str,
+        remote_jid: str,
         name: str | None = None,
         preferred_language: str | None = None,
     ) -> dict[str, Any]:
         payload = {
-            "phone_number": phone_number,
+            "remoteJid": remote_jid,
             "name": name,
             "preferred_language": preferred_language,
         }
         payload = {key: value for key, value in payload.items() if value is not None}
         response = await (
             self.client.table("customers")
-            .upsert(payload, on_conflict="phone_number")
+            .upsert(payload, on_conflict="remoteJid")
             .execute()
         )
         data = _response_data(response)
@@ -149,7 +149,7 @@ class SupabaseRepository:
     async def list_active_trips(self) -> list[dict[str, Any]]:
         query = (
             self.client.table("driver_trips")
-            .select("*, drivers(*), driver_cars(*)")
+            .select("*, drivers(*, customers(*)), driver_cars(*)")
             .eq("status", "active")
             .gt("available_seats", 0)
         )
@@ -166,7 +166,7 @@ class SupabaseRepository:
             return []
         response = await (
             self.client.table("driver_trips")
-            .select("*, drivers(*), driver_cars(*)")
+            .select("*, drivers(*, customers(*)), driver_cars(*)")
             .in_("id", trip_ids)
             .execute()
         )
@@ -183,7 +183,7 @@ class SupabaseRepository:
     ) -> list[dict[str, Any]]:
         query = (
             self.client.table("driver_trips")
-            .select("*, drivers(*), driver_cars(*)")
+            .select("*, drivers(*, customers(*)), driver_cars(*)")
             .eq("status", "active")
             .gt("available_seats", 0)
         )
@@ -308,27 +308,27 @@ class SupabaseRepository:
     async def get_trip_by_id(self, trip_id: str) -> dict[str, Any] | None:
         response = await (
             self.client.table("driver_trips")
-            .select("*, drivers(*), driver_cars(*)")
+            .select("*, drivers(*, customers(*)), driver_cars(*)")
             .eq("id", trip_id)
             .maybe_single()
             .execute()
         )
         return _response_data(response)
 
-    async def get_driver_by_phone(self, phone_number: str) -> dict[str, Any] | None:
+    async def get_driver_by_remoteJid(self, remote_jid: str) -> dict[str, Any] | None:
         response = await (
             self.client.table("drivers")
-            .select("*")
-            .eq("phone_number", phone_number)
+            .select("*, customers!inner(*)")
+            .eq("customers.remoteJid", remote_jid)
             .maybe_single()
             .execute()
         )
         return _response_data(response)
 
-    async def create_driver(self, *, name: str, phone_number: str) -> dict[str, Any]:
+    async def create_driver(self, *, customer_id: str) -> dict[str, Any]:
         response = await (
             self.client.table("drivers")
-            .insert({"name": name, "phone_number": phone_number, "status": "active"})
+            .insert({"customer_id": customer_id, "status": "active"})
             .execute()
         )
         data = _response_data(response)
@@ -338,7 +338,14 @@ class SupabaseRepository:
             .insert({"driver_id": driver["id"], "balance": 0})
             .execute()
         )
-        return driver
+        driver_response = await (
+            self.client.table("drivers")
+            .select("*, customers(*)")
+            .eq("id", str(driver["id"]))
+            .maybe_single()
+            .execute()
+        )
+        return _response_data(driver_response)
 
     async def get_driver_latest_trip(self, driver_id: str) -> dict[str, Any] | None:
         response = await (

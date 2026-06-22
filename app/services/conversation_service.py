@@ -70,7 +70,7 @@ class ConversationService:
             return None
 
         customer = await self.repository.upsert_customer(
-            phone_number=inbound.from_phone,
+            remote_jid=inbound.remoteJid,
             name=inbound.profile_name,
         )
         current_message = await self.repository.create_message(
@@ -88,7 +88,7 @@ class ConversationService:
         )
 
         user_mode = _resolve_user_mode(customer)
-        registry = self._tool_registry(customer, sender_phone=inbound.from_phone, user_mode=user_mode)
+        registry = self._tool_registry(customer, remoteJid=inbound.remoteJid, user_mode=user_mode)
         reply = await self.ai.generate_reply(
             messages=self._ai_messages(context, user_mode=user_mode),
             tools=get_tool_schemas(user_mode),
@@ -101,14 +101,14 @@ class ConversationService:
             message=reply,
             metadata={"provider_flow": "groq_primary_hf_fallback", "user_mode": user_mode},
         )
-        # await self.whatsapp.send_text(inbound.from_phone, reply)
+        await self.whatsapp.send_text(inbound.remoteJid, reply)
         return reply
 
     def _tool_registry(
         self,
         customer: dict[str, Any],
         *,
-        sender_phone: str,
+        remoteJid: str,
         user_mode: UserMode,
     ) -> ToolRegistry:
         handlers = FalsaToolHandlers(
@@ -116,7 +116,7 @@ class ConversationService:
             embeddings=self.embeddings,
             whatsapp=self.whatsapp,
             customer=customer,
-            sender_phone=sender_phone,
+            remoteJid=remoteJid,
             embedding_model=self.settings.jina_embedding_model,
         )
         registry = ToolRegistry()

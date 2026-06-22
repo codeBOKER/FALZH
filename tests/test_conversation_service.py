@@ -8,7 +8,7 @@ from tests.conftest import FakeAI, FakeEmbeddings, FakeRepository, FakeWhatsApp
 @pytest.mark.asyncio
 async def test_conversation_stores_messages_uses_last_four_context_and_sends_reply(settings):
     repository = FakeRepository()
-    customer = await repository.upsert_customer(phone_number="967700000001", name="Customer")
+    customer = await repository.upsert_customer(remote_jid="967700000001", name="Customer")
     for index in range(6):
         await repository.create_message(
             customer_id=customer["id"],
@@ -60,7 +60,7 @@ async def test_conversation_stores_messages_uses_last_four_context_and_sends_rep
 @pytest.mark.asyncio
 async def test_conversation_skips_duplicate_whatsapp_message(settings):
     repository = FakeRepository()
-    customer = await repository.upsert_customer(phone_number="967700000001")
+    customer = await repository.upsert_customer(remote_jid="967700000001")
     await repository.create_message(
         customer_id=customer["id"],
         sender_type="customer",
@@ -93,7 +93,7 @@ async def test_conversation_skips_duplicate_whatsapp_message(settings):
 @pytest.mark.asyncio
 async def test_conversation_uses_passenger_tools_when_user_mode_is_passenger(settings):
     repository = FakeRepository()
-    customer = await repository.upsert_customer(phone_number="967700000001", name="Customer")
+    customer = await repository.upsert_customer(remote_jid="967700000001", name="Customer")
     customer["user_mode"] = "passenger"
     ai = FakeAI(reply="Passenger reply")
     service = ConversationService(

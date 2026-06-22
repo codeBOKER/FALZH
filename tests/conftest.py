@@ -98,8 +98,8 @@ def test_app(settings: Settings) -> Any:
 
 class FakeRepository:
     def __init__(self) -> None:
-        self.customers_by_phone: dict[str, dict[str, Any]] = {}
-        self.drivers_by_phone: dict[str, dict[str, Any]] = {}
+        self.customers_by_remote_jid: dict[str, dict[str, Any]] = {}
+        self.drivers_by_remote_jid: dict[str, dict[str, Any]] = {}
         self.driver_cars_by_driver: dict[str, list[dict[str, Any]]] = {}
         self.latest_trips_by_driver: dict[str, dict[str, Any]] = {}
         self.created_drivers: list[dict[str, Any]] = []
@@ -117,20 +117,20 @@ class FakeRepository:
     async def upsert_customer(
         self,
         *,
-        phone_number: str,
+        remote_jid: str,
         name: str | None = None,
         preferred_language: str | None = None,
     ) -> dict[str, Any]:
-        customer = self.customers_by_phone.get(phone_number)
+        customer = self.customers_by_remote_jid.get(remote_jid)
         if customer is None:
             customer = {
-                "id": f"cust-{len(self.customers_by_phone) + 1}",
-                "phone_number": phone_number,
+                "id": f"cust-{len(self.customers_by_remote_jid) + 1}",
+                "remoteJid": remote_jid,
                 "name": name,
                 "preferred_language": preferred_language,
                 "user_mode": None,
             }
-            self.customers_by_phone[phone_number] = customer
+            self.customers_by_remote_jid[remote_jid] = customer
         elif name:
             customer["name"] = name
         return customer
@@ -141,7 +141,7 @@ class FakeRepository:
         customer_id: str,
         user_mode: str,
     ) -> dict[str, Any]:
-        for customer in self.customers_by_phone.values():
+        for customer in self.customers_by_remote_jid.values():
             if customer["id"] == customer_id:
                 customer["user_mode"] = user_mode
                 return customer
@@ -153,7 +153,7 @@ class FakeRepository:
         customer_id: str,
         name: str,
     ) -> dict[str, Any]:
-        for customer in self.customers_by_phone.values():
+        for customer in self.customers_by_remote_jid.values():
             if customer["id"] == customer_id:
                 customer["name"] = name
                 return customer
@@ -253,17 +253,23 @@ class FakeRepository:
         self.notification_updates.append(update)
         return update
 
-    async def get_driver_by_phone(self, phone_number: str) -> dict[str, Any] | None:
-        return self.drivers_by_phone.get(phone_number)
+    async def get_driver_by_phone(self, remote_jid: str) -> dict[str, Any] | None:
+        return self.drivers_by_remote_jid.get(remote_jid)
 
-    async def create_driver(self, *, name: str, phone_number: str) -> dict[str, Any]:
+    async def create_driver(self, *, customer_id: str) -> dict[str, Any]:
+        customer = next(
+            (customer for customer in self.customers_by_remote_jid.values() if customer["id"] == customer_id),
+            None,
+        )
+        if customer is None:
+            raise KeyError(customer_id)
         driver = {
-            "id": f"driver-{len(self.drivers_by_phone) + 1}",
-            "name": name,
-            "phone_number": phone_number,
+            "id": f"driver-{len(self.drivers_by_remote_jid) + 1}",
+            "customer_id": customer_id,
             "status": "active",
+            "customers": customer,
         }
-        self.drivers_by_phone[phone_number] = driver
+        self.drivers_by_remote_jid[customer["remoteJid"]] = driver
         self.created_drivers.append(driver)
         return driver
 
@@ -312,7 +318,7 @@ class FakeRepository:
         car_id = kwargs.get("car_id")
         cars = self.driver_cars_by_driver.get(driver_id, [])
         driver = next(
-            (row for row in self.drivers_by_phone.values() if row["id"] == driver_id),
+            (row for row in self.drivers_by_remote_jid.values() if row["id"] == driver_id),
             {"name": "Driver"},
         )
         matched_car = next(

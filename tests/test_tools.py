@@ -16,7 +16,7 @@ def make_handlers(
         repository=repository or FakeRepository(),
         embeddings=embeddings or FakeEmbeddings(),
         whatsapp=whatsapp or FakeWhatsApp(),
-        customer=customer or {"id": "cust-1", "phone_number": sender_phone},
+        customer=customer or {"id": "cust-1", "remoteJid": sender_phone},
         sender_phone=sender_phone,
         embedding_model="jina-embeddings-v5-text-small",
     )
@@ -43,7 +43,7 @@ def trip(
         "total_seats": 4,
         "price": "50.00",
         "status": status,
-        "drivers": {"name": "Ali", "phone_number": "967700000009"},
+        "drivers": {"name": "Ali", "remoteJid": "967700000009"},
         "driver_cars": {"car_type": car_type},
     }
 
@@ -162,7 +162,7 @@ async def test_create_booking_lead_notifies_driver():
     handlers = make_handlers(
         repository=repository,
         whatsapp=whatsapp,
-        customer={"id": "cust-1", "phone_number": "967700000001", "name": "Mona"},
+        customer={"id": "cust-1", "remoteJid": "967700000001", "name": "Mona"},
     )
 
     result = await handlers.create_booking_lead(
@@ -210,22 +210,20 @@ async def test_create_driver_account_uses_sender_phone():
     repository = FakeRepository()
     handlers = make_handlers(repository=repository, sender_phone="967700000010")
 
-    result = await handlers.create_driver_account(
-        {"name": "Ali Driver", "phone_number": "967700000099"}
-    )
+    result = await handlers.create_driver_account({"name": "Ali Driver"})
 
     assert result.ok is True
-    assert repository.created_drivers[0]["phone_number"] == "967700000010"
-    assert repository.drivers_by_phone["967700000010"]["name"] == "Ali Driver"
+    assert repository.created_drivers[0]["customers"]["remoteJid"] == "967700000010"
+    assert repository.drivers_by_remote_jid["967700000010"]["name"] == "Ali Driver"
 
 
 @pytest.mark.asyncio
 async def test_create_driver_account_rejects_duplicate():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
     }
     handlers = make_handlers(repository=repository, sender_phone="967700000010")
 
@@ -257,10 +255,10 @@ async def test_add_trip_by_driver_requires_account():
 @pytest.mark.asyncio
 async def test_add_driver_car_accepts_name_only():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
     }
     handlers = make_handlers(repository=repository, sender_phone="967700000010")
 
@@ -276,10 +274,10 @@ async def test_add_driver_car_accepts_name_only():
 @pytest.mark.asyncio
 async def test_check_driver_info_returns_account_summary():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
         "status": "active",
     }
     repository.driver_cars_by_driver["driver-1"] = [
@@ -314,10 +312,10 @@ async def test_check_driver_info_returns_account_summary():
 @pytest.mark.asyncio
 async def test_check_driver_trips_returns_upcoming_trips():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
     }
     repository.trips_by_id["trip-1"] = {
         "id": "trip-1",
@@ -367,10 +365,10 @@ async def test_check_driver_info_requests_driver_registration_if_unregistered():
 @pytest.mark.asyncio
 async def test_add_trip_by_driver_uses_latest_trip_defaults():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
     }
     repository.driver_cars_by_driver["driver-1"] = [
         {"id": "car-1", "car_type": "SUV", "seat_count": 4},
@@ -409,10 +407,10 @@ async def test_add_trip_by_driver_uses_latest_trip_defaults():
 @pytest.mark.asyncio
 async def test_add_trip_by_driver_resolves_vehicle_type_by_name():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
     }
     repository.driver_cars_by_driver["driver-1"] = [
         {"id": "car-1", "car_type": "باص", "plate_number": "1234", "seat_count": 14},
@@ -440,10 +438,10 @@ async def test_add_trip_by_driver_resolves_vehicle_type_by_name():
 @pytest.mark.asyncio
 async def test_add_trip_by_driver_indexes_new_trip():
     repository = FakeRepository()
-    repository.drivers_by_phone["967700000010"] = {
+    repository.drivers_by_remote_jid["967700000010"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000010",
+        "remoteJid": "967700000010",
     }
     repository.driver_cars_by_driver["driver-1"] = [
         {"id": "car-1", "car_type": "SUV", "seat_count": 4},
@@ -471,7 +469,7 @@ async def test_add_trip_by_driver_indexes_new_trip():
 @pytest.mark.asyncio
 async def test_switch_to_driver_requires_existing_driver_account():
     repository = FakeRepository()
-    customer = {"id": "cust-1", "phone_number": "967700000001"}
+    customer = {"id": "cust-1", "remoteJid": "967700000001"}
     handlers = make_handlers(repository=repository, customer=customer)
 
     result = await handlers.switch_to_driver({})
@@ -483,11 +481,11 @@ async def test_switch_to_driver_requires_existing_driver_account():
 @pytest.mark.asyncio
 async def test_switch_to_driver_updates_customer_mode():
     repository = FakeRepository()
-    customer = await repository.upsert_customer(phone_number="967700000001")
-    repository.drivers_by_phone["967700000001"] = {
+    customer = await repository.upsert_customer(remote_jid="967700000001")
+    repository.drivers_by_remote_jid["967700000001"] = {
         "id": "driver-1",
         "name": "Ali",
-        "phone_number": "967700000001",
+        "remoteJid": "967700000001",
     }
     handlers = make_handlers(repository=repository, customer=customer)
 
@@ -501,7 +499,7 @@ async def test_switch_to_driver_updates_customer_mode():
 @pytest.mark.asyncio
 async def test_switch_to_passenger_updates_mode_and_optional_name():
     repository = FakeRepository()
-    customer = await repository.upsert_customer(phone_number="967700000001")
+    customer = await repository.upsert_customer(remote_jid="967700000001")
     handlers = make_handlers(repository=repository, customer=customer)
 
     result = await handlers.switch_to_passenger({"name": "Sara"})
@@ -515,7 +513,7 @@ async def test_switch_to_passenger_updates_mode_and_optional_name():
 @pytest.mark.asyncio
 async def test_switch_to_passenger_without_name():
     repository = FakeRepository()
-    customer = await repository.upsert_customer(phone_number="967700000001", name="Existing")
+    customer = await repository.upsert_customer(remote_jid="967700000001", name="Existing")
     handlers = make_handlers(repository=repository, customer=customer)
 
     result = await handlers.switch_to_passenger({})

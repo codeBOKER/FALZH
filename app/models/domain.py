@@ -8,7 +8,7 @@ UserMode = Literal["new_user", "driver", "passenger"]
 @dataclass(slots=True)
 class WhatsAppInboundMessage:
     message_id: str
-    from_phone: str
+    remoteJid: str
     text: str
     timestamp: str | None = None
     profile_name: str | None = None

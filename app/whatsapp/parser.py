@@ -22,19 +22,19 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                 if message_type not in SUPPORTED_MESSAGE_TYPES:
                     continue
 
-                from_phone = message.get("from")
+                remoteJid = message.get("from")
                 message_id = message.get("id")
                 text = message.get("text", {}).get("body")
-                if not from_phone or not message_id or text is None:
+                if not remoteJid or not message_id or text is None:
                     continue
 
                 messages.append(
                     WhatsAppInboundMessage(
                         message_id=message_id,
-                        from_phone=from_phone,
+                        remoteJid=remoteJid,
                         text=text,
                         timestamp=message.get("timestamp"),
-                        profile_name=contacts_by_wa_id.get(from_phone),
+                        profile_name=contacts_by_wa_id.get(remoteJid),
                         phone_number_id=phone_number_id,
                         raw=message,
                     )

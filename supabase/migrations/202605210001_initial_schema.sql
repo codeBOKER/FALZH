@@ -13,7 +13,7 @@ $$;
 create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
   name text,
-  phone_number text not null unique,
+  "remoteJid" text not null unique,
   preferred_language text check (preferred_language in ('ar', 'en')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -21,8 +21,7 @@ create table if not exists public.customers (
 
 create table if not exists public.drivers (
   id uuid primary key default gen_random_uuid(),
-  name text not null,
-  phone_number text not null unique,
+  customer_id uuid not null unique references public.customers(id) on delete cascade,
   status text not null default 'active' check (status in ('active', 'inactive', 'suspended')),
   rating numeric(3,2),
   created_at timestamptz not null default now(),

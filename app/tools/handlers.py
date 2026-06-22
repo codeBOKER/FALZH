@@ -25,14 +25,14 @@ class FalsaToolHandlers:
         embeddings: JinaEmbeddingService,
         whatsapp: WhatsAppClient,
         customer: dict[str, Any],
-        sender_phone: str,
+        remoteJid: str,
         embedding_model: str,
     ) -> None:
         self.repository = repository
         self.embeddings = embeddings
         self.whatsapp = whatsapp
         self.customer = customer
-        self.sender_phone = sender_phone
+        self.remoteJid = remoteJid
         self.embedding_model = embedding_model
 
     async def about_falsa(self, arguments: dict[str, Any]) -> ToolResult:
@@ -188,11 +188,13 @@ class FalsaToolHandlers:
         notification_status = "sent"
         notification_error = None
         try:
-            driver_phone = (_first_or_dict(trip.get("drivers")) or {}).get("phone_number")
-            if not driver_phone:
-                raise WhatsAppClientError("Driver phone number is missing")
+            driver_record = _first_or_dict(trip.get("drivers")) or {}
+            driver_customer = driver_record.get("customers") or {}
+            driver_remote_jid = driver_customer.get("remoteJid") or driver_record.get("remoteJid")
+            if not driver_remote_jid:
+                raise WhatsAppClientError("Driver remoteJid is missing")
             await self.whatsapp.send_text(
-                driver_phone,
+                driver_remote_jid,
                 _driver_notification_text(
                     customer=self.customer,
                     trip=trip,
@@ -226,8 +228,8 @@ class FalsaToolHandlers:
         if not name:
             return ToolResult(ok=False, data={}, error="name is required")
 
-        phone = self.sender_phone
-        existing = await self.repository.get_driver_by_phone(phone)
+        remote_jid = self.remoteJid
+        existing = await self.repository.get_driver_by_remoteJid(remote_jid)
         if existing:
             return ToolResult(
                 ok=False,
@@ -235,19 +237,19 @@ class FalsaToolHandlers:
                 error="Driver account already exists for this WhatsApp number",
             )
 
-        driver = await self.repository.create_driver(name=name, phone_number=phone)
+        driver = await self.repository.create_driver(customer_id=str(self.customer["id"]))
         return ToolResult(
             ok=True,
             data={
                 "driver_id": driver["id"],
-                "name": driver.get("name"),
-                "phone_number": driver.get("phone_number"),
+                "name": self.customer.get("name"),
+                "remoteJid": self.customer.get("remoteJid"),
                 "message": "Driver account created successfully.",
             },
         )
 
     async def check_driver_info(self, arguments: dict[str, Any]) -> ToolResult:
-        driver = await self.repository.get_driver_by_phone(self.sender_phone)
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
             return ToolResult(
                 ok=False,
@@ -258,6 +260,7 @@ class FalsaToolHandlers:
                 ),
             )
 
+        customer_info = driver.get("customers", {})
         cars = await self.repository.list_driver_cars(str(driver["id"]))
         upcoming_trips = await self.repository.list_driver_trips(str(driver["id"]))
 
@@ -265,8 +268,8 @@ class FalsaToolHandlers:
             ok=True,
             data={
                 "driver_id": driver["id"],
-                "name": driver.get("name"),
-                "phone_number": driver.get("phone_number"),
+                "name": customer_info.get("name") or driver.get("name"),
+                "remoteJid": customer_info.get("remoteJid") or driver.get("remoteJid"),
                 "status": driver.get("status"),
                 "vehicle_count": len(cars),
                 "active_trip_count": len(upcoming_trips),
@@ -286,7 +289,7 @@ class FalsaToolHandlers:
         )
 
     async def check_driver_trips(self, arguments: dict[str, Any]) -> ToolResult:
-        driver = await self.repository.get_driver_by_phone(self.sender_phone)
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
             return ToolResult(
                 ok=False,
@@ -313,7 +316,7 @@ class FalsaToolHandlers:
         )
 
     async def add_driver_car(self, arguments: dict[str, Any]) -> ToolResult:
-        driver = await self.repository.get_driver_by_phone(self.sender_phone)
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
             return ToolResult(
                 ok=False,
@@ -352,7 +355,7 @@ class FalsaToolHandlers:
         )
 
     async def add_trip_by_driver(self, arguments: dict[str, Any]) -> ToolResult:
-        driver = await self.repository.get_driver_by_phone(self.sender_phone)
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
             return ToolResult(
                 ok=False,
@@ -503,7 +506,7 @@ class FalsaToolHandlers:
         )
 
     async def switch_to_driver(self, arguments: dict[str, Any]) -> ToolResult:
-        driver = await self.repository.get_driver_by_phone(self.sender_phone)
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
             return ToolResult(
                 ok=False,
@@ -732,8 +735,8 @@ def _driver_notification_text(
 ) -> str:
     return (
         "New FALSA booking lead\n"
-        f"Customer: {customer.get('name') or customer.get('phone_number')}\n"
-        f"Phone: {customer.get('phone_number')}\n"
+        f"Customer: {customer.get('name') or customer.get('remoteJid')}\n"
+        f"Remote JID: {customer.get('remoteJid')}\n"
         f"Trip: {trip.get('departure')} -> {trip.get('destination')}\n"
         f"Departure: {trip_departure_date(trip)} {trip_departure_bucket(trip)}\n"
         f"Seats requested: {requested_seats}\n"

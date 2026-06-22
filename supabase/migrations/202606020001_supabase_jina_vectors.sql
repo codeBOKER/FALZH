@@ -117,8 +117,8 @@ as $$
       driver_trips.total_seats,
       driver_trips.price,
       driver_trips.status,
-      drivers.name as driver_name,
-      drivers.phone_number as driver_phone_number,
+      customers.name as driver_name,
+      customers."remoteJid" as driver_phone_number,
       driver_cars.car_type,
       driver_trip_embeddings.chunk_text,
       1 - (driver_trip_embeddings.embedding <=> query_embedding) as similarity,
@@ -137,6 +137,7 @@ as $$
     from public.driver_trip_embeddings
     join public.driver_trips on driver_trips.id = driver_trip_embeddings.trip_id
     left join public.drivers on drivers.id = driver_trips.driver_id
+    left join public.customers on customers.id = drivers.customer_id
     left join public.driver_cars on driver_cars.id = driver_trips.car_id
     where driver_trips.status = 'active'
       and driver_trips.available_seats >= coalesce(filter_seats, 1)
