@@ -421,6 +421,24 @@ class SupabaseRepository:
         )
         return _response_data(response)
 
+    async def get_driver_trip_by_datetime(
+        self,
+        driver_id: str,
+        departure_date: date,
+        departure_time: str,
+    ) -> dict[str, Any] | None:
+        response = await (
+            self.client.table("driver_trips")
+            .select("id, departure, destination, departure_date, departure_time")
+            .eq("driver_id", driver_id)
+            .eq("status", "active")
+            .eq("departure_date", departure_date.isoformat())
+            .eq("departure_time", departure_time)
+            .maybe_single()
+            .execute()
+        )
+        return _response_data(response)
+
     async def list_driver_cars(self, driver_id: str) -> list[dict[str, Any]]:
         response = await (
             self.client.table("driver_cars")

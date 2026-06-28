@@ -396,6 +396,21 @@ class FalsaToolHandlers:
                 error="departure_time must be morning, noon, night, or Arabic صباح / ظهر / ليل",
             )
 
+        existing = await self.repository.get_driver_trip_by_datetime(
+            driver_id=str(driver["id"]),
+            departure_date=parsed_date,
+            departure_time=departure_time,
+        )
+        if existing:
+            return ToolResult(
+                ok=False,
+                data={"existing_trip_id": existing.get("id")},
+                error=(
+                    "You already have a trip scheduled at this date and time. "
+                    "Cancel or modify the existing trip before creating a new one."
+                ),
+            )
+
         latest_trip = await self.repository.get_driver_latest_trip(str(driver["id"]))
         cars = await self.repository.list_driver_cars(str(driver["id"]))
 
