@@ -265,13 +265,18 @@ class ConversationService:
         return messages
 
     def _system_prompt(self, user_mode: UserMode) -> str:
+        base_template = Path("prompts/system.md").read_text(encoding="utf-8")
         if self.system_prompt_path is not None:
-            template = self.system_prompt_path.read_text(encoding="utf-8")
+            mode_template = self.system_prompt_path.read_text(encoding="utf-8")
         else:
-            template = _PROMPT_PATHS[user_mode].read_text(encoding="utf-8")
-        current_datetime = now_in_timezone(self.settings.app_timezone).isoformat()
+            mode_template = _PROMPT_PATHS[user_mode].read_text(encoding="utf-8")
+        template = base_template + "\n\n" + mode_template
+        dt = now_in_timezone(self.settings.app_timezone)
+        current_datetime = dt.isoformat()
+        day_name = dt.strftime("%A")
         return template.format(
             current_datetime=current_datetime,
+            day_name=day_name,
             timezone=self.settings.app_timezone,
         )
 
