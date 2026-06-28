@@ -5,7 +5,6 @@ from typing import Any
 from app.ai.providers import (
     ChatProvider,
     InvalidToolCallGenerationError,
-    ProviderError,
     RetryableProviderError,
 )
 from app.models.domain import AIProviderResponse, ToolCall
@@ -88,7 +87,7 @@ class AIOrchestrator:
                 content = (response.content or "").strip()
                 if content:
                     return content
-                raise ProviderError(f"{provider.name} returned an empty response")
+                raise RetryableProviderError(f"{provider.name} returned an empty response")
             working_messages.append(_assistant_tool_message(response))
             for tool_call in response.tool_calls:
                 logger.warning("++++++++"+str(tool_call)+ "&&&"+ str(registry))
