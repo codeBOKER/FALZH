@@ -37,6 +37,10 @@ async def index_trip(
     await repository.upsert_trip_embeddings([record])
 
 
+async def unindex_trip(*, repository: SupabaseRepository, trip_id: str) -> None:
+    await repository.delete_trip_embedding(trip_id)
+
+
 def _first_or_dict(value: Any) -> dict[str, Any] | None:
     if isinstance(value, list):
         return value[0] if value else None

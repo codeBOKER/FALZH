@@ -8,10 +8,12 @@ from app.config import Settings
 from app.database.supabase import SupabaseRepository
 from app.models.domain import UserMode, WhatsAppInboundMessage
 from app.services.embedding_service import JinaEmbeddingService
-from app.tools.handlers import FalsaToolHandlers
+from app.services.trip_indexing import unindex_trip
+from app.tools.handlers import FalsaToolHandlers, _trip_summary
 from app.tools.registry import ToolRegistry
 from app.utils.time import now_in_timezone
 from app.whatsapp.client import WhatsAppClient
+from app.whatsapp.trip_selection import parse_trip_action_reply
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,10 @@ _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
         "check_driver_trips",
         "add_driver_car",
         "add_trip_by_driver",
+        "delete_trip_by_number",
+        "modify_trip_by_number",
+        "initiate_trip_action",
+        "update_trip_field",
         "switch_to_passenger",
     ],
     "passenger": [
@@ -73,6 +79,7 @@ class ConversationService:
             remote_jid=inbound.remoteJid,
             name=inbound.profile_name,
         )
+
         current_message = await self.repository.create_message(
             customer_id=str(customer["id"]),
             sender_type="customer",
@@ -95,14 +102,130 @@ class ConversationService:
             registry=registry,
         )
 
+        await self.whatsapp.send_text(inbound.remoteJid, reply)
+
         await self.repository.create_message(
             customer_id=str(customer["id"]),
             sender_type="assistant",
             message=reply,
             metadata={"provider_flow": "groq_primary_hf_fallback", "user_mode": user_mode},
         )
-        await self.whatsapp.send_text(inbound.remoteJid, reply)
+
         return reply
+
+    async def _handle_trip_interactive_reply(
+        self,
+        inbound: WhatsAppInboundMessage,
+        customer: dict[str, Any],
+        *,
+        action: str,
+        trip_id: str,
+    ) -> str | None:
+        current_message = await self.repository.create_message(
+            customer_id=str(customer["id"]),
+            sender_type="customer",
+            message=inbound.text,
+            whatsapp_message_id=inbound.message_id,
+            metadata={
+                "whatsapp": inbound.raw,
+                "timestamp": inbound.timestamp,
+                "interactive_reply_id": inbound.interactive_reply_id,
+            },
+        )
+
+        driver = await self.repository.get_driver_by_remoteJid(inbound.remoteJid)
+        if not driver:
+            reply = (
+                "لا يوجد حساب سائق مرتبط بهذا الرفم"
+                "من فضللك, سجل كحساب سائق اولا"
+            )
+            await self._store_and_send_assistant_reply(
+                customer,
+                inbound.remoteJid,
+                reply,
+                user_mode=_resolve_user_mode(customer),
+            )
+            return reply
+
+        trip = await self.repository.get_trip_by_id(trip_id)
+        if not trip or str(trip.get("driver_id")) != str(driver["id"]):
+            reply = "That trip could not be found for your account."
+            await self._store_and_send_assistant_reply(
+                customer,
+                inbound.remoteJid,
+                reply,
+                user_mode=_resolve_user_mode(customer),
+            )
+            return reply
+
+        if action == "DELETE":
+            await self.repository.cancel_driver_trip(trip_id)
+            await unindex_trip(repository=self.repository, trip_id=trip_id)
+            reply = "Success! Your trip has been canceled."
+            await self._store_and_send_assistant_reply(
+                customer,
+                inbound.remoteJid,
+                reply,
+                user_mode="driver",
+            )
+            return reply
+
+        if action == "MODIFY":
+            await self.repository.set_customer_session_field(
+                customer_id=str(customer["id"]),
+                key="active_edit_trip_id",
+                value=trip_id,
+            )
+            summary = _trip_summary(trip)
+            route = f"{summary.get('departure')} -> {summary.get('destination')}"
+            time_label = summary.get("departure_time") or summary.get("departure_time_type")
+            system_note = (
+                f"SYSTEM: Driver selected trip {trip_id} ({route}, {time_label}) to modify. "
+                "Ask them what details they want to change."
+            )
+            user_mode = "driver"
+            registry = self._tool_registry(
+                customer,
+                remoteJid=inbound.remoteJid,
+                user_mode=user_mode,
+            )
+            context = await self.repository.get_recent_context_messages(
+                customer_id=str(customer["id"]),
+                current_message_id=str(current_message["id"]),
+                limit=4,
+            )
+            messages = self._ai_messages(context, user_mode=user_mode)
+            messages.append({"role": "system", "content": system_note})
+            reply = await self.ai.generate_reply(
+                messages=messages,
+                tools=get_tool_schemas(user_mode),
+                registry=registry,
+            )
+            await self._store_and_send_assistant_reply(
+                customer,
+                inbound.remoteJid,
+                reply,
+                user_mode=user_mode,
+            )
+            return reply
+
+        return None
+
+    async def _store_and_send_assistant_reply(
+        self,
+        customer: dict[str, Any],
+        remoteJid: str,
+        reply: str,
+        *,
+        user_mode: UserMode,
+    ) -> None:
+        await self.repository.create_message(
+            customer_id=str(customer["id"]),
+            sender_type="assistant",
+            message=reply,
+            metadata={"provider_flow": "trip_interactive_reply", "user_mode": user_mode},
+        )
+        await self.whatsapp.send_text(remoteJid, reply)
 
     def _tool_registry(
         self,

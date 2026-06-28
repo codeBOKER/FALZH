@@ -89,10 +89,9 @@ class AIOrchestrator:
                 if content:
                     return content
                 raise ProviderError(f"{provider.name} returned an empty response")
-            logger.info("----++-----"+str(response))
             working_messages.append(_assistant_tool_message(response))
             for tool_call in response.tool_calls:
-                # logger.warning("++++++++"+str(tool_call)+ "&&&"+ str(registry))
+                logger.warning("++++++++"+str(tool_call)+ "&&&"+ str(registry))
                 result = await _execute_tool_call(registry, tool_call)
                 logger.warning("+++++++++++++"+str(result))
                 working_messages.append(

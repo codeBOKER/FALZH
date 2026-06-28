@@ -83,6 +83,60 @@ class SupabaseRepository:
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
 
+    async def get_customer_session(self, customer_id: str) -> dict[str, Any]:
+        response = await (
+            self.client.table("customers")
+            .select("session_data")
+            .eq("id", customer_id)
+            .maybe_single()
+            .execute()
+        )
+        data = _response_data(response) or {}
+        session_data = data.get("session_data")
+        return session_data if isinstance(session_data, dict) else {}
+
+    async def update_customer_session(
+        self,
+        *,
+        customer_id: str,
+        session_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        response = await (
+            self.client.table("customers")
+            .update({"session_data": session_data})
+            .eq("id", customer_id)
+            .execute()
+        )
+        data = _response_data(response)
+        return data[0] if isinstance(data, list) else data
+
+    async def set_customer_session_field(
+        self,
+        *,
+        customer_id: str,
+        key: str,
+        value: Any,
+    ) -> dict[str, Any]:
+        session_data = await self.get_customer_session(customer_id)
+        session_data[key] = value
+        return await self.update_customer_session(
+            customer_id=customer_id,
+            session_data=session_data,
+        )
+
+    async def clear_customer_session_field(
+        self,
+        *,
+        customer_id: str,
+        key: str,
+    ) -> dict[str, Any]:
+        session_data = await self.get_customer_session(customer_id)
+        session_data.pop(key, None)
+        return await self.update_customer_session(
+            customer_id=customer_id,
+            session_data=session_data,
+        )
+
     async def message_exists(self, whatsapp_message_id: str) -> bool:
         response = await (
             self.client.table("messages")
@@ -275,6 +329,14 @@ class SupabaseRepository:
         data = _response_data(response)
         return len(data) if isinstance(data, list) else len(trip_embeddings)
 
+    async def delete_trip_embedding(self, trip_id: str) -> None:
+        await (
+            self.client.table("driver_trip_embeddings")
+            .delete()
+            .eq("trip_id", trip_id)
+            .execute()
+        )
+
     def _apply_departure_request_filter(
         self,
         query: Any,
@@ -429,6 +491,34 @@ class SupabaseRepository:
         data = _response_data(response)
         trip = data[0] if isinstance(data, list) else data
         return await self.get_trip_by_id(str(trip["id"])) or trip
+
+    async def update_driver_trip(
+        self,
+        trip_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not updates:
+            raise ValueError("updates must not be empty")
+        response = await (
+            self.client.table("driver_trips")
+            .update(updates)
+            .eq("id", trip_id)
+            .execute()
+        )
+        data = _response_data(response)
+        updated = data[0] if isinstance(data, list) else data
+        return await self.get_trip_by_id(str(updated.get("id") or trip_id)) or updated
+
+    async def cancel_driver_trip(self, trip_id: str) -> dict[str, Any]:
+        response = await (
+            self.client.table("driver_trips")
+            .update({"status": "cancelled"})
+            .eq("id", trip_id)
+            .execute()
+        )
+        data = _response_data(response)
+        updated = data[0] if isinstance(data, list) else data
+        return await self.get_trip_by_id(str(updated.get("id") or trip_id)) or updated
 
     async def create_booking_lead(
         self,

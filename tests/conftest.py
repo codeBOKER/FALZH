@@ -129,6 +129,7 @@ class FakeRepository:
                 "name": name,
                 "preferred_language": preferred_language,
                 "user_mode": None,
+                "session_data": {},
             }
             self.customers_by_remote_jid[remote_jid] = customer
         elif name:
@@ -158,6 +159,51 @@ class FakeRepository:
                 customer["name"] = name
                 return customer
         raise KeyError(customer_id)
+
+    async def get_customer_session(self, customer_id: str) -> dict[str, Any]:
+        for customer in self.customers_by_phone.values():
+            if customer["id"] == customer_id:
+                return dict(customer.get("session_data") or {})
+        return {}
+
+    async def update_customer_session(
+        self,
+        *,
+        customer_id: str,
+        session_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        for customer in self.customers_by_phone.values():
+            if customer["id"] == customer_id:
+                customer["session_data"] = session_data
+                return customer
+        raise KeyError(customer_id)
+
+    async def set_customer_session_field(
+        self,
+        *,
+        customer_id: str,
+        key: str,
+        value: Any,
+    ) -> dict[str, Any]:
+        session_data = await self.get_customer_session(customer_id)
+        session_data[key] = value
+        return await self.update_customer_session(
+            customer_id=customer_id,
+            session_data=session_data,
+        )
+
+    async def clear_customer_session_field(
+        self,
+        *,
+        customer_id: str,
+        key: str,
+    ) -> dict[str, Any]:
+        session_data = await self.get_customer_session(customer_id)
+        session_data.pop(key, None)
+        return await self.update_customer_session(
+            customer_id=customer_id,
+            session_data=session_data,
+        )
 
     async def message_exists(self, whatsapp_message_id: str) -> bool:
         return any(
@@ -340,6 +386,25 @@ class FakeRepository:
     async def get_trip_by_id(self, trip_id: str) -> dict[str, Any] | None:
         return self.trips_by_id.get(trip_id)
 
+    async def update_driver_trip(
+        self,
+        trip_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any]:
+        trip = self.trips_by_id[trip_id]
+        trip.update(updates)
+        return trip
+
+    async def cancel_driver_trip(self, trip_id: str) -> dict[str, Any]:
+        trip = self.trips_by_id[trip_id]
+        trip["status"] = "cancelled"
+        return trip
+
+    async def delete_trip_embedding(self, trip_id: str) -> None:
+        self.trip_embeddings = [
+            row for row in self.trip_embeddings if row.get("trip_id") != trip_id
+        ]
+
     async def upsert_trip_embeddings(self, trip_embeddings: list[dict[str, Any]]) -> int:
         self.trip_embeddings.extend(trip_embeddings)
         return len(trip_embeddings)
@@ -364,12 +429,23 @@ class FakeWhatsApp:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
         self.sent: list[tuple[str, str]] = []
+        self.interactive_lists: list[tuple[str, dict[str, Any]]] = []
 
     async def send_text(self, to_phone: str, text: str) -> dict[str, Any]:
         if self.fail:
             raise RuntimeError("send failed")
         self.sent.append((to_phone, text))
         return {"messages": [{"id": "sent"}]}
+
+    async def send_interactive_list(
+        self,
+        to_phone: str,
+        interactive: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self.fail:
+            raise RuntimeError("send failed")
+        self.interactive_lists.append((to_phone, interactive))
+        return {"messages": [{"id": "sent-interactive"}]}
 
 
 class FakeAI:

@@ -273,6 +273,151 @@ _ADD_TRIP_BY_DRIVER = {
     },
 }
 
+_INITIATE_TRIP_ACTION = {
+    "type": "function",
+    "function": {
+        "name": "initiate_trip_action",
+        "description": (
+            "Start delete or modify flow for one of the driver's upcoming trips. "
+            "The system sends a numbered list of active trips to the driver in plain text."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action_type": {
+                    "type": "string",
+                    "enum": ["DELETE", "MODIFY"],
+                    "description": "Whether the driver wants to cancel or edit a trip.",
+                },
+                "travel_date": {
+                    "type": "string",
+                    "description": (
+                        "Optional trip date filter as YYYY-MM-DD in Asia/Aden when the "
+                        "driver mentioned a specific day such as today or tomorrow."
+                    ),
+                },
+                "travel_time": {
+                    "type": "string",
+                    "enum": ["صباح", "ظهر", "ليل"],
+                    "description": "Optional departure time bucket filter in Arabic.",
+                },
+            },
+            "required": ["action_type"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_UPDATE_TRIP_FIELD = {
+    "type": "function",
+    "function": {
+        "name": "update_trip_field",
+        "description": (
+            "Update one field on the trip the driver selected for editing. "
+            "trip_id is resolved automatically from the active edit session."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string",
+                    "enum": [
+                        "departure",
+                        "destination",
+                        "departure_date",
+                        "departure_time",
+                        "pickup_time",
+                        "vehicle_type",
+                        "available_seats",
+                        "total_seats",
+                        "price",
+                    ],
+                    "description": "Trip field to update.",
+                },
+                "value": {
+                    "type": "string",
+                    "description": (
+                        "New value for the field. Use YYYY-MM-DD for dates, HH:MM for "
+                        "pickup_time, Arabic city names for route fields, and English "
+                        "digits for seats and price."
+                    ),
+                },
+            },
+            "required": ["field", "value"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_DELETE_TRIP_BY_NUMBER = {
+    "type": "function",
+    "function": {
+        "name": "delete_trip_by_number",
+        "description": (
+            "Cancel an upcoming active trip using the driver-visible trip number. "
+            "Trip numbers are assigned in ascending order from oldest to newest."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trip_number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The one-based number of the trip from the driver trip list.",
+                },
+            },
+            "required": ["trip_number"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_MODIFY_TRIP_BY_NUMBER = {
+    "type": "function",
+    "function": {
+        "name": "modify_trip_by_number",
+        "description": (
+            "Modify one field of an active driver trip using the driver-visible trip number. "
+            "Trip numbers are assigned in ascending order from oldest to newest."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trip_number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The one-based number of the trip from the driver trip list.",
+                },
+                "field": {
+                    "type": "string",
+                    "enum": [
+                        "departure",
+                        "destination",
+                        "departure_date",
+                        "departure_time",
+                        "pickup_time",
+                        "vehicle_type",
+                        "available_seats",
+                        "total_seats",
+                        "price",
+                    ],
+                    "description": "The trip field to update.",
+                },
+                "value": {
+                    "type": "string",
+                    "description": (
+                        "New value for the field. Use YYYY-MM-DD for dates, HH:MM for "
+                        "pickup_time, Arabic city names for route fields, and English "
+                        "digits for seats and price."
+                    ),
+                },
+            },
+            "required": ["trip_number", "field", "value"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 _SWITCH_TO_DRIVER = {
     "type": "function",
     "function": {
@@ -320,6 +465,10 @@ _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "check_driver_trips": _CHECK_DRIVER_TRIPS,
     "add_driver_car": _ADD_DRIVER_CAR,
     "add_trip_by_driver": _ADD_TRIP_BY_DRIVER,
+    "initiate_trip_action": _INITIATE_TRIP_ACTION,
+    "update_trip_field": _UPDATE_TRIP_FIELD,
+    "delete_trip_by_number": _DELETE_TRIP_BY_NUMBER,
+    "modify_trip_by_number": _MODIFY_TRIP_BY_NUMBER,
     "switch_to_driver": _SWITCH_TO_DRIVER,
     "switch_to_passenger": _SWITCH_TO_PASSENGER,
 }
@@ -337,6 +486,10 @@ _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
         "check_driver_trips",
         "add_driver_car",
         "add_trip_by_driver",
+        "delete_trip_by_number",
+        "modify_trip_by_number",
+        "initiate_trip_action",
+        "update_trip_field",
         "switch_to_passenger",
     ],
     "passenger": [

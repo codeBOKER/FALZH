@@ -15,6 +15,8 @@ def test_driver_tools_exclude_passenger_booking_tools():
     names = {schema["function"]["name"] for schema in get_tool_schemas("driver")}
     assert "search_trips" not in names
     assert "create_booking_lead" not in names
+    assert "initiate_trip_action" in names
+    assert "update_trip_field" in names
     assert "switch_to_passenger" in names
 
 
@@ -28,4 +30,4 @@ def test_passenger_tools_exclude_driver_management_tools():
 
 def test_all_tool_schemas_include_every_tool():
     names = {schema["function"]["name"] for schema in get_all_tool_schemas()}
-    assert len(names) == 10
+    assert len(names) == 14

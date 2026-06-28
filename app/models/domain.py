@@ -13,6 +13,8 @@ class WhatsAppInboundMessage:
     timestamp: str | None = None
     profile_name: str | None = None
     phone_number_id: str | None = None
+    message_type: str = "text"
+    interactive_reply_id: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
 

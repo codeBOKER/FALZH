@@ -521,3 +521,117 @@ async def test_switch_to_passenger_without_name():
     assert result.ok is True
     assert customer["user_mode"] == "passenger"
     assert customer["name"] == "Existing"
+
+
+def _driver_setup(repository: FakeRepository, *, phone: str = "967700000010") -> None:
+    repository.drivers_by_phone[phone] = {
+        "id": "driver-1",
+        "name": "Ali",
+        "phone_number": phone,
+    }
+    repository.trips_by_id["trip-1"] = {
+        "id": "trip-1",
+        "driver_id": "driver-1",
+        "departure": "عدن",
+        "destination": "المكلا",
+        "departure_date": "2026-12-01",
+        "departure_time": "morning",
+        "available_seats": 2,
+        "total_seats": 4,
+        "price": "80.00",
+        "status": "active",
+        "driver_cars": {"car_type": "SUV"},
+        "drivers": {"name": "Ali"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_initiate_trip_action_sends_whatsapp_list():
+    repository = FakeRepository()
+    whatsapp = FakeWhatsApp()
+    _driver_setup(repository)
+    handlers = make_handlers(
+        repository=repository,
+        whatsapp=whatsapp,
+        sender_phone="967700000010",
+    )
+
+    result = await handlers.initiate_trip_action({"action_type": "DELETE"})
+
+    assert result.ok is True
+    assert result.data["count"] == 1
+    assert "Pausing for response" in result.data["message"]
+    assert len(whatsapp.interactive_lists) == 1
+    _, interactive = whatsapp.interactive_lists[0]
+    assert interactive["action"]["sections"][0]["rows"][0]["id"] == "DELETE_trip-1"
+
+
+@pytest.mark.asyncio
+async def test_initiate_trip_action_returns_no_trips_message():
+    repository = FakeRepository()
+    _driver_setup(repository)
+    repository.trips_by_id.clear()
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+
+    result = await handlers.initiate_trip_action({"action_type": "MODIFY"})
+
+    assert result.ok is True
+    assert result.data["count"] == 0
+    assert "No trips found" in result.data["message"]
+
+
+@pytest.mark.asyncio
+async def test_delete_trip_by_number_cancels_trip():
+    repository = FakeRepository()
+    _driver_setup(repository)
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+
+    result = await handlers.delete_trip_by_number({"trip_number": 1})
+
+    assert result.ok is True
+    assert result.data["trip_number"] == 1
+    assert result.data["trip_id"] == "trip-1"
+    assert repository.trips_by_id["trip-1"]["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_modify_trip_by_number_updates_trip_field():
+    repository = FakeRepository()
+    _driver_setup(repository)
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+
+    result = await handlers.modify_trip_by_number(
+        {"trip_number": 1, "field": "departure", "value": "تعز"}
+    )
+
+    assert result.ok is True
+    assert result.data["trip_number"] == 1
+    assert result.data["field"] == "departure"
+    assert result.data["value"] == "تعز"
+    assert repository.trips_by_id["trip-1"]["departure"] == "تعز"
+
+
+@pytest.mark.asyncio
+async def test_update_trip_field_uses_active_session_and_clears_it():
+    repository = FakeRepository()
+    customer = await repository.upsert_customer(phone_number="967700000010")
+    await repository.set_customer_session_field(
+        customer_id=customer["id"],
+        key="active_edit_trip_id",
+        value="trip-1",
+    )
+    _driver_setup(repository)
+    handlers = make_handlers(
+        repository=repository,
+        customer=customer,
+        sender_phone="967700000010",
+    )
+
+    result = await handlers.update_trip_field(
+        {"field": "pickup_time", "value": "15:00"},
+    )
+
+    assert result.ok is True
+    assert repository.trips_by_id["trip-1"]["departure_time"] == "noon"
+    assert await repository.get_customer_session(customer["id"]) == {}
+    assert len(repository.trip_embeddings) == 1

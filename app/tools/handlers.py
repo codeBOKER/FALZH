@@ -4,7 +4,7 @@ from typing import Any
 from app.database.supabase import SupabaseRepository
 from app.models.domain import ToolResult
 from app.services.embedding_service import JinaEmbeddingService
-from app.services.trip_indexing import index_trip
+from app.services.trip_indexing import index_trip, unindex_trip
 from app.utils.departure import (
     _parse_date_value,
     normalize_departure_bucket,
@@ -15,6 +15,7 @@ from app.utils.departure import (
     trip_satisfies_departure_request,
 )
 from app.whatsapp.client import WhatsAppClient, WhatsAppClientError
+from app.whatsapp.trip_selection import build_trip_selection_list, build_trip_selection_text
 
 
 class FalsaToolHandlers:
@@ -248,6 +249,12 @@ class FalsaToolHandlers:
             },
         )
 
+    async def _summarize_trips(self, trips: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            _trip_summary(trip, trip_number=index + 1)
+            for index, trip in enumerate(trips)
+        ]
+
     async def check_driver_info(self, arguments: dict[str, Any]) -> ToolResult:
         driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
@@ -282,9 +289,7 @@ class FalsaToolHandlers:
                     }
                     for car in cars
                 ],
-                "active_trips": [
-                    _trip_summary(trip) for trip in upcoming_trips
-                ],
+                "active_trips": await self._summarize_trips(upcoming_trips),
             },
         )
 
@@ -305,7 +310,7 @@ class FalsaToolHandlers:
             ok=True,
             data={
                 "driver_id": driver["id"],
-                "upcoming_trips": [_trip_summary(trip) for trip in trips],
+                "upcoming_trips": await self._summarize_trips(trips),
                 "count": len(trips),
                 "message": (
                     "No upcoming active trips found."
@@ -505,6 +510,282 @@ class FalsaToolHandlers:
             },
         )
 
+    async def initiate_trip_action(self, arguments: dict[str, Any]) -> ToolResult:
+        action_type = _optional_string(arguments.get("action_type"))
+        if action_type not in {"DELETE", "MODIFY"}:
+            return ToolResult(
+                ok=False,
+                data={},
+                error="action_type must be DELETE or MODIFY",
+            )
+
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
+        if not driver:
+            return ToolResult(
+                ok=False,
+                data={"action": "create_driver_account"},
+                error=(
+                    "No driver account for this WhatsApp number. "
+                    "Ask the sender to register with create_driver_account first."
+                ),
+            )
+
+        trips = await self.repository.list_driver_trips(str(driver["id"]))
+        travel_date = _optional_string(arguments.get("travel_date"))
+        travel_time = _optional_string(arguments.get("travel_time"))
+        departure_request = parse_departure_request(
+            travel_date=travel_date,
+            travel_time=travel_time,
+        )
+        if departure_request.departure_date or departure_request.departure_time:
+            trips = [
+                trip
+                for trip in trips
+                if trip_satisfies_departure_request(trip, departure_request)
+            ]
+
+        if not trips:
+            return ToolResult(
+                ok=True,
+                data={
+                    "count": 0,
+                    "message": "No trips found. Ask the user for clarification.",
+                },
+            )
+
+        body = build_trip_selection_text(trips=trips, action_type=action_type)
+        try:
+            await self.whatsapp.send_text(self.remoteJid, body)
+        except WhatsAppClientError as exc:
+            return ToolResult(
+                ok=False,
+                data={"count": len(trips)},
+                error=f"Failed to send WhatsApp trip selection text: {exc}",
+            )
+
+        return ToolResult(
+            ok=True,
+            data={
+                "count": len(trips),
+                "action_type": action_type,
+                "message": (
+                    "Sent a numbered trip list to the driver via WhatsApp. "
+                    "Ask them to reply with the trip number."
+                ),
+            },
+        )
+
+    async def delete_trip_by_number(self, arguments: dict[str, Any]) -> ToolResult:
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
+        if not driver:
+            return ToolResult(
+                ok=False,
+                data={"action": "create_driver_account"},
+                error=(
+                    "No driver account for this WhatsApp number. "
+                    "Ask the sender to register with create_driver_account first."
+                ),
+            )
+
+        trip_number = _optional_int(arguments.get("trip_number"))
+        if trip_number is None or trip_number < 1:
+            return ToolResult(ok=False, data={}, error="trip_number must be an integer >= 1")
+
+        trips = await self.repository.list_driver_trips(str(driver["id"]))
+        if trip_number > len(trips):
+            return ToolResult(
+                ok=False,
+                data={"count": len(trips)},
+                error=f"trip_number must be between 1 and {len(trips)}",
+            )
+
+        trip = trips[trip_number - 1]
+        await self.repository.cancel_driver_trip(str(trip["id"]))
+        await unindex_trip(repository=self.repository, trip_id=str(trip["id"]))
+
+        return ToolResult(
+            ok=True,
+            data={
+                "trip_number": trip_number,
+                "trip_id": trip.get("id"),
+                "trip": _trip_summary(trip, trip_number=trip_number),
+                "message": "Success! Your trip has been canceled.",
+            },
+        )
+
+    async def modify_trip_by_number(self, arguments: dict[str, Any]) -> ToolResult:
+        print("\n  modefing our new \n")
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
+        if not driver:
+            return ToolResult(
+                ok=False,
+                data={"action": "create_driver_account"},
+                error=(
+                    "No driver account for this WhatsApp number. "
+                    "Ask the sender to register with create_driver_account first."
+                ),
+            )
+
+        trip_number = _optional_int(arguments.get("trip_number"))
+        field = _optional_string(arguments.get("field"))
+        value = _optional_string(arguments.get("value"))
+        if trip_number is None or trip_number < 1:
+            return ToolResult(ok=False, data={}, error="trip_number must be an integer >= 1")
+        if not field or value is None:
+            return ToolResult(ok=False, data={}, error="field and value are required")
+
+        trips = await self.repository.list_driver_trips(str(driver["id"]))
+        if trip_number > len(trips):
+            return ToolResult(
+                ok=False,
+                data={"count": len(trips)},
+                error=f"trip_number must be between 1 and {len(trips)}",
+            )
+
+        trip = trips[trip_number - 1]
+        updates, error = await self._build_trip_field_update(
+            driver_id=str(driver["id"]),
+            field=field,
+            value=value,
+        )
+        if error:
+            return ToolResult(ok=False, data={}, error=error)
+
+        updated_trip = await self.repository.update_driver_trip(str(trip["id"]), updates)
+        await index_trip(
+            repository=self.repository,
+            embeddings=self.embeddings,
+            embedding_model=self.embedding_model,
+            trip=updated_trip,
+        )
+
+        return ToolResult(
+            ok=True,
+            data={
+                "trip_number": trip_number,
+                "trip_id": updated_trip.get("id"),
+                "field": field,
+                "value": value,
+                "trip": _trip_summary(updated_trip, trip_number=trip_number),
+                "message": "Trip updated successfully.",
+            },
+        )
+
+    async def update_trip_field(self, arguments: dict[str, Any]) -> ToolResult:
+        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
+        if not driver:
+            return ToolResult(
+                ok=False,
+                data={"action": "create_driver_account"},
+                error=(
+                    "No driver account for this WhatsApp number. "
+                    "Ask the sender to register with create_driver_account first."
+                ),
+            )
+
+        session = await self.repository.get_customer_session(str(self.customer["id"]))
+        trip_id = _optional_string(session.get("active_edit_trip_id"))
+        if not trip_id:
+            return ToolResult(
+                ok=False,
+                data={},
+                error=(
+                    "No trip is selected for editing. "
+                    "Use initiate_trip_action with MODIFY first."
+                ),
+            )
+
+        trip = await self.repository.get_trip_by_id(trip_id)
+        if not trip:
+            return ToolResult(ok=False, data={}, error="Trip was not found")
+        if str(trip.get("driver_id")) != str(driver["id"]):
+            return ToolResult(ok=False, data={}, error="Trip does not belong to this driver")
+        if trip.get("status") != "active":
+            return ToolResult(ok=False, data={}, error="Trip is not active")
+
+        field = _optional_string(arguments.get("field"))
+        value = _optional_string(arguments.get("value"))
+        if not field or value is None:
+            return ToolResult(ok=False, data={}, error="field and value are required")
+
+        updates, error = await self._build_trip_field_update(
+            driver_id=str(driver["id"]),
+            field=field,
+            value=value,
+        )
+        if error:
+            return ToolResult(ok=False, data={}, error=error)
+
+        updated_trip = await self.repository.update_driver_trip(trip_id, updates)
+        await index_trip(
+            repository=self.repository,
+            embeddings=self.embeddings,
+            embedding_model=self.embedding_model,
+            trip=updated_trip,
+        )
+        await self.repository.clear_customer_session_field(
+            customer_id=str(self.customer["id"]),
+            key="active_edit_trip_id",
+        )
+
+        return ToolResult(
+            ok=True,
+            data={
+                "trip_id": trip_id,
+                "field": field,
+                "value": value,
+                "trip": _trip_summary(updated_trip),
+                "message": "Trip updated successfully.",
+            },
+        )
+
+    async def _build_trip_field_update(
+        self,
+        *,
+        driver_id: str,
+        field: str,
+        value: str,
+    ) -> tuple[dict[str, Any], str | None]:
+        if field in {"departure", "destination"}:
+            return {field: value}, None
+
+        if field == "departure_date":
+            parsed_date = _parse_date_value(value)
+            if not parsed_date:
+                return {}, "departure_date must be YYYY-MM-DD"
+            return {"departure_date": parsed_date.isoformat()}, None
+
+        if field in {"departure_time", "pickup_time"}:
+            bucket = normalize_departure_bucket(value)
+            if not bucket:
+                return {}, "departure_time must be morning, noon, night, or HH:MM"
+            return {"departure_time": bucket}, None
+
+        if field == "vehicle_type":
+            cars = await self.repository.list_driver_cars(driver_id)
+            matched_car = _resolve_driver_car(cars, vehicle_type=value)
+            if not matched_car:
+                return {}, f"No registered vehicle matches '{value}'"
+            return {"car_id": str(matched_car["id"])}, None
+
+        if field in {"available_seats", "total_seats"}:
+            seats = _optional_int(value)
+            if seats is None:
+                return {}, f"{field} must be an integer"
+            if field == "available_seats" and seats < 0:
+                return {}, "available_seats must be at least 0"
+            if field == "total_seats" and seats < 1:
+                return {}, "total_seats must be at least 1"
+            return {field: seats}, None
+
+        if field == "price":
+            price = _optional_price(value)
+            if price is None or price < 0:
+                return {}, "price must be zero or greater"
+            return {"price": price}, None
+
+        return {}, f"Unsupported field: {field}"
+
     async def switch_to_driver(self, arguments: dict[str, Any]) -> ToolResult:
         driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
         if not driver:
@@ -660,10 +941,10 @@ def _is_trip_match(
     return True
 
 
-def _trip_summary(trip: dict[str, Any]) -> dict[str, Any]:
+def _trip_summary(trip: dict[str, Any], *, trip_number: int | None = None) -> dict[str, Any]:
     driver = _first_or_dict(trip.get("drivers")) or {}
     car = _first_or_dict(trip.get("driver_cars")) or {}
-    return {
+    summary = {
         "trip_id": trip.get("trip_id") or trip.get("id"),
         "departure": trip.get("departure"),
         "destination": trip.get("destination"),
@@ -681,6 +962,9 @@ def _trip_summary(trip: dict[str, Any]) -> dict[str, Any]:
         "similarity": trip.get("similarity"),
         "time_difference_minutes": trip.get("time_difference_minutes"),
     }
+    if trip_number is not None:
+        summary["trip_number"] = trip_number
+    return summary
 
 
 def _sort_trip_summaries(trips: list[dict[str, Any]]) -> list[dict[str, Any]]:
