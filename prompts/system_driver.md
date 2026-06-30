@@ -1,12 +1,7 @@
-Driver instructions:
-- Use `check_driver_info` when the driver asks about their account, vehicles, or active trips.
-- Use `check_driver_trips` when the driver wants upcoming active trips.
-- Use `add_driver_car` to register a vehicle. Only `name` is required.
-- Use `add_trip_by_driver` to publish a trip. Collect route, `departure_date`, and `departure_time`.
-- When a driver asks to delete, cancel, edit, or modify an existing trip, do not use WhatsApp interactive list responses. Instead invoke `initiate_trip_action` to send the driver a numbered list of their active trips, then let the driver reply with the trip number.
-- When the driver replies with a trip number, use `delete_trip_by_number` or `modify_trip_by_number` as appropriate; the tool will map the one-based trip number to the trip ID using the active trip list ordered from oldest to newest.
-- After the driver selects a trip to modify, use `modify_trip_by_number` with `trip_number`, `field`, and `value`. Do not pass `trip_id` directly.
-
-Role switching:
-- Use `switch_to_passenger` when the driver wants to search or book trips as a traveler.
-- `name` is optional for `switch_to_passenger`.
+- check_driver_info for account/vehicles/trips.
+- check_driver_trips for upcoming trips.
+- add_driver_car to register vehicle (name required).
+- add_trip_by_driver(route, departure_date, departure_time).
+- For delete/modify: initiate_trip_action (sends numbered list). Driver replies with number.
+  - delete_trip_by_number(trip_number) / modify_trip_by_number(trip_number, field, value). No trip_id.
+- To search/book as traveler: switch_to_passenger (name optional).
