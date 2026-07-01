@@ -5,7 +5,7 @@
 > **🚧 Work in progress — not yet published. Coming soon.**
 
 <p align="center">
-  <img src="assets/Falsa.png" alt="FALSA logo" width="300">
+  <img src="assets/Falsa.png" alt="FALSA logo" width="100%">
 </p>
 
 FALSA lets passengers search trips and book seats, and lets drivers publish, update, and manage their trips — all through a natural conversation on WhatsApp. No app to install, no complex UI to learn. Just type what you want.
