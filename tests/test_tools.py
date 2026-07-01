@@ -128,6 +128,69 @@ async def test_search_trips_reports_no_matches():
 
 
 @pytest.mark.asyncio
+async def test_search_trips_requires_at_least_departure_or_destination():
+    handlers = make_handlers()
+
+    result = await handlers.search_trips({"seats": 2})
+
+    assert result.ok is False
+    assert "departure or destination" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_search_trips_with_departure_only():
+    repository = FakeRepository()
+    repository.trip_vector_search_results = [
+        trip(trip_id="trip-1", departure="Aden", destination="Mukalla"),
+        trip(trip_id="trip-2", departure="Aden", destination="Taiz"),
+    ]
+    embeddings = FakeEmbeddings()
+    handlers = make_handlers(repository=repository, embeddings=embeddings)
+
+    result = await handlers.search_trips({"departure": "Aden"})
+
+    assert result.ok is True
+    assert result.data["count"] == 2
+    assert result.data["matches"][0]["trip_id"] == "trip-1"
+    assert result.data["matches"][1]["trip_id"] == "trip-2"
+    assert repository.vector_trip_search_calls[0]["departure"] == "Aden"
+    assert repository.vector_trip_search_calls[0]["destination"] is None
+
+
+@pytest.mark.asyncio
+async def test_search_trips_with_destination_only():
+    repository = FakeRepository()
+    repository.trip_vector_search_results = [
+        trip(trip_id="trip-1", departure="Aden", destination="Mukalla"),
+        trip(trip_id="trip-2", departure="Taiz", destination="Mukalla"),
+    ]
+    embeddings = FakeEmbeddings()
+    handlers = make_handlers(repository=repository, embeddings=embeddings)
+
+    result = await handlers.search_trips({"destination": "Mukalla"})
+
+    assert result.ok is True
+    assert result.data["count"] == 2
+    assert repository.vector_trip_search_calls[0]["departure"] is None
+    assert repository.vector_trip_search_calls[0]["destination"] == "Mukalla"
+
+
+@pytest.mark.asyncio
+async def test_search_trips_defaults_seats_to_one():
+    repository = FakeRepository()
+    repository.trip_vector_search_results = [
+        trip(trip_id="trip-1", available_seats=1),
+    ]
+    handlers = make_handlers(repository=repository)
+
+    result = await handlers.search_trips({"departure": "Aden", "destination": "Mukalla"})
+
+    assert result.ok is True
+    assert result.data["count"] == 1
+    assert repository.vector_trip_search_calls[0]["seats"] == 1
+
+
+@pytest.mark.asyncio
 async def test_search_trips_includes_alternate_alert_when_first_result_is_over_one_hour():
     repository = FakeRepository()
     repository.trip_vector_search_results = [

@@ -35,6 +35,8 @@ _SEARCH_TRIPS = {
         "description": (
             "Search active car or bus trips. "
             "Use when the customer asks for travel options. "
+            "You can search with only departure or only destination"
+            " — the other will match any location. "
             "Each matching trip is sent as a separate WhatsApp message. "
             "The customer can reply to a trip card to select it."
         ),
@@ -43,11 +45,17 @@ _SEARCH_TRIPS = {
             "properties": {
                 "departure": {
                     "type": "string",
-                    "description": "Departure city or area in Arabic.",
+                    "description": (
+                        "Departure city or area in Arabic. At least one of departure or"
+                        " destination is required — the other can be omitted to match anywhere."
+                    ),
                 },
                 "destination": {
                     "type": "string",
-                    "description": "Destination city or area in Arabic.",
+                    "description": (
+                        "Destination city or area in Arabic. At least one of departure or"
+                        " destination is required — the other can be omitted to match anywhere."
+                    ),
                 },
                 "travel_datetime": {
                     "type": "string",
@@ -89,12 +97,12 @@ _SEARCH_TRIPS = {
                 "vector_query_text": {
                     "type": "string",
                     "description": (
-                        "Natural-language semantic search text containing the route, date, "
-                        "time, seats, and vehicle preferences extracted from the customer."
+                        "Optional natural-language semantic search text. "
+                        "Automatically constructed from the other fields if not provided."
                     ),
                 },
             },
-            "required": ["departure", "destination", "vector_query_text"],
+            "required": [],
             "additionalProperties": False,
         },
     },
@@ -105,10 +113,10 @@ _CREATE_BOOKING_LEAD = {
     "function": {
         "name": "create_booking_lead",
         "description": (
-            "Create a pending booking lead and notify the driver. "
-            "This does not reserve seats or confirm payment. "
-            "If the customer replied to a trip card, trip_id is resolved automatically — "
-            "you can omit it and the system will detect which trip they meant."
+            "Create a pending booking lead (1 seat by default) and notify the driver. "
+            "Call this immediately when the user replies to a trip card — trip_id is "
+            "auto-detected and requested_seats defaults to 1. "
+            "Does not reserve seats or confirm payment."
         ),
         "parameters": {
             "type": "object",
