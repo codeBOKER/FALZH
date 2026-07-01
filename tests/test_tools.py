@@ -32,7 +32,11 @@ def trip(
     available_seats=3,
     status="active",
     car_type="SUV",
+    driver_phone_number=None,
 ):
+    drivers = {"name": "Ali", "remoteJid": "967700000009"}
+    if driver_phone_number is not None:
+        drivers["customers"] = {"phone_number": driver_phone_number}
     return {
         "id": trip_id,
         "departure": departure,
@@ -43,7 +47,7 @@ def trip(
         "total_seats": 4,
         "price": "50.00",
         "status": status,
-        "drivers": {"name": "Ali", "remoteJid": "967700000009"},
+        "drivers": drivers,
         "driver_cars": {"car_type": car_type},
     }
 
@@ -236,6 +240,27 @@ async def test_create_booking_lead_notifies_driver():
     assert result.data["driver_notification_status"] == "sent"
     assert repository.booking_leads[0]["requested_seats"] == 2
     assert whatsapp.sent[0][0] == "967700000009"
+
+
+@pytest.mark.asyncio
+async def test_create_booking_lead_uses_driver_phone_number():
+    repository = FakeRepository()
+    repository.trips_by_id["trip-1"] = trip(driver_phone_number="967700000099")
+    whatsapp = FakeWhatsApp()
+    handlers = make_handlers(
+        repository=repository,
+        whatsapp=whatsapp,
+        customer={"id": "cust-1", "remoteJid": "967700000001", "name": "Mona"},
+    )
+
+    result = await handlers.create_booking_lead(
+        {"trip_id": "trip-1", "requested_seats": 1}
+    )
+
+    assert result.ok is True
+    assert result.data["driver_notification_status"] == "sent"
+    assert whatsapp.sent[0][0] == "967700000099"
+    assert result.data["driver_phone"] == "967700000099"
 
 
 @pytest.mark.asyncio

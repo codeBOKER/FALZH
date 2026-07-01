@@ -40,6 +40,8 @@ class SupabaseRepository:
         preferred_language: str | None = None,
         phone_number: str | None = None,
     ) -> dict[str, Any]:
+        if phone_number:
+            phone_number = phone_number.split("@")[0]
         payload = {
             "remoteJid": remote_jid,
             "name": name,

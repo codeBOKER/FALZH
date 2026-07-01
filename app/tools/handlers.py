@@ -235,12 +235,12 @@ class FalsaToolHandlers:
         try:
             driver_record = _first_or_dict(trip.get("drivers")) or {}
             driver_customer = driver_record.get("customers") or {}
-            driver_remote_jid = driver_customer.get("remoteJid") or driver_record.get("remoteJid")
-            if not driver_remote_jid:
-                raise WhatsAppClientError("Driver remoteJid is missing")
-            driver_phone = driver_remote_jid.split("@")[0]
+            driver_recipient = driver_customer.get("phone_number") or driver_customer.get("remoteJid") or driver_record.get("remoteJid")
+            if not driver_recipient:
+                raise WhatsAppClientError("Driver recipient is missing")
+            driver_phone = driver_recipient.split("@")[0]
             await self.whatsapp.send_text(
-                driver_remote_jid,
+                driver_recipient,
                 _driver_notification_text(
                     customer=self.customer,
                     trip=trip,
@@ -1081,6 +1081,7 @@ def _driver_notification_text(
     return (
         "🔔 حجز جديد في فلسا\n"
         f"العميل: {customer.get('name') or 'عميل جديد'}\n"
+        f"رقم العميل: {customer.get('phone_number') or 'غير متوفر'}\n"
         f"الرحلة: {trip.get('departure')} ← {trip.get('destination')}\n"
         f"التاريخ: {trip_departure_date(trip)} {trip_departure_bucket(trip)}\n"
         f"المقاعد المطلوبة: {requested_seats}\n"
