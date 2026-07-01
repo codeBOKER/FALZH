@@ -109,11 +109,11 @@ class FalsaToolHandlers:
             exact_time=travel_time_exact,
         )
 
-        if not departure or not destination:
+        if not departure and not destination:
             return ToolResult(
                 ok=False,
                 data={},
-                error="departure and destination are required before searching trips",
+                error="At least departure or destination is required before searching trips",
             )
 
         query = vector_query_text or _trip_vector_query_text(
@@ -186,6 +186,7 @@ class FalsaToolHandlers:
             ok=True,
             data={
                 "count": len(top_trips),
+                "matches": top_trips,
                 "alternate_alert": alternate_alert,
                 "sent_as_messages": bool(top_trips),
                 "note": (
@@ -949,8 +950,8 @@ def _resolve_driver_car(
 
 def _trip_vector_query_text(
     *,
-    departure: str,
-    destination: str,
+    departure: str | None,
+    destination: str | None,
     travel_date: str | None,
     travel_time: str | None,
     travel_time_exact: str | None,
@@ -977,8 +978,8 @@ def _trip_vector_query_text(
 def _is_trip_match(
     trip: dict[str, Any],
     *,
-    departure: str,
-    destination: str,
+    departure: str | None,
+    destination: str | None,
     seats: int,
     vehicle_type: str | None,
     departure_request: Any,
@@ -987,9 +988,9 @@ def _is_trip_match(
         return False
     if int(trip.get("available_seats") or 0) < seats:
         return False
-    if departure.lower() not in str(trip.get("departure") or "").lower():
+    if departure and departure.lower() not in str(trip.get("departure") or "").lower():
         return False
-    if destination.lower() not in str(trip.get("destination") or "").lower():
+    if destination and destination.lower() not in str(trip.get("destination") or "").lower():
         return False
     if vehicle_type:
         car = _first_or_dict(trip.get("driver_cars")) or {}

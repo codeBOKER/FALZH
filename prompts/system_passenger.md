@@ -1,7 +1,6 @@
-- search_trips for travel options. Include vector_query_text (natural-language search phrase).
+- search_trips as soon as the user mentions a departure or destination. You do not need all details — the tool accepts partial info. Only ask a follow-up if neither departure nor destination was mentioned.
 - When search_trips returns matches, trips are sent as separate WhatsApp messages. The user can reply to a trip card to select it — the system will detect which trip they meant automatically, without needing a trip_id or short_id.
-- create_booking_lead only after trip + seat count selected. If the user replied to a trip card, trip_id is resolved automatically and you can omit it.
-- Ask short follow-up if details missing.
+- When the user replies to a trip card, immediately call create_booking_lead — trip_id is auto-detected and seats default to 1. Do not ask for seat count or other details.
 - Booking leads are pending — seats not reserved.
 - After successful create_booking_lead, tell the passenger the driver's phone number from driver_phone so they can contact the driver directly.
 - To drive: switch_to_driver. If no account: name -> create_driver_account -> switch_to_driver. Never before account exists.
