@@ -38,11 +38,13 @@ class SupabaseRepository:
         remote_jid: str,
         name: str | None = None,
         preferred_language: str | None = None,
+        phone_number: str | None = None,
     ) -> dict[str, Any]:
         payload = {
             "remoteJid": remote_jid,
             "name": name,
             "preferred_language": preferred_language,
+            "phone_number": phone_number,
         }
         payload = {key: value for key, value in payload.items() if value is not None}
         response = await (
@@ -199,6 +201,19 @@ class SupabaseRepository:
         prior_response = await prior_query.execute()
         prior = _response_data(prior_response) or []
         return list(reversed(prior)) + [current]
+
+    async def get_message_by_whatsapp_id(
+        self,
+        whatsapp_message_id: str,
+    ) -> dict[str, Any] | None:
+        response = await (
+            self.client.table("messages")
+            .select("*")
+            .eq("whatsapp_message_id", whatsapp_message_id)
+            .maybe_single()
+            .execute()
+        )
+        return _response_data(response)
 
     async def list_active_trips(self) -> list[dict[str, Any]]:
         query = (

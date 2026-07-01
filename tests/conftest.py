@@ -117,23 +117,30 @@ class FakeRepository:
     async def upsert_customer(
         self,
         *,
-        remote_jid: str,
+        remote_jid: str | None = None,
         name: str | None = None,
         preferred_language: str | None = None,
+        phone_number: str | None = None,
     ) -> dict[str, Any]:
-        customer = self.customers_by_remote_jid.get(remote_jid)
+        jid = remote_jid or phone_number
+        if not jid:
+            raise ValueError("remote_jid or phone_number is required")
+        customer = self.customers_by_remote_jid.get(jid)
         if customer is None:
             customer = {
                 "id": f"cust-{len(self.customers_by_remote_jid) + 1}",
-                "remoteJid": remote_jid,
+                "remoteJid": jid,
                 "name": name,
                 "preferred_language": preferred_language,
+                "phone_number": phone_number,
                 "user_mode": None,
                 "session_data": {},
             }
-            self.customers_by_remote_jid[remote_jid] = customer
+            self.customers_by_remote_jid[jid] = customer
         elif name:
             customer["name"] = name
+        if phone_number:
+            customer["phone_number"] = phone_number
         return customer
 
     async def update_customer_user_mode(

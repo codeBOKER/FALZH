@@ -34,7 +34,9 @@ _SEARCH_TRIPS = {
         "name": "search_trips",
         "description": (
             "Search active car or bus trips. "
-            "Use when the customer asks for travel options."
+            "Use when the customer asks for travel options. "
+            "Each matching trip is sent as a separate WhatsApp message. "
+            "The customer can reply to a trip card to select it."
         ),
         "parameters": {
             "type": "object",
@@ -104,23 +106,25 @@ _CREATE_BOOKING_LEAD = {
         "name": "create_booking_lead",
         "description": (
             "Create a pending booking lead and notify the driver. "
-            "This does not reserve seats or confirm payment."
+            "This does not reserve seats or confirm payment. "
+            "If the customer replied to a trip card, trip_id is resolved automatically — "
+            "you can omit it and the system will detect which trip they meant."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "trip_id": {"type": "string", "description": "Selected trip ID."},
+                "trip_id": {"type": "string", "description": "Selected trip ID. Optional if the customer replied to a trip card message."},
                 "requested_seats": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "Number of seats requested by the customer.",
+                    "description": "Number of seats requested. Defaults to 1 if not specified.",
                 },
                 "notes": {
                     "type": "string",
                     "description": "Optional customer notes or pickup details.",
                 },
             },
-            "required": ["trip_id", "requested_seats"],
+            "required": [],
             "additionalProperties": False,
         },
     },

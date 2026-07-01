@@ -15,6 +15,8 @@ class WhatsAppInboundMessage:
     phone_number_id: str | None = None
     message_type: str = "text"
     interactive_reply_id: str | None = None
+    context_message_id: str | None = None
+    phone_number: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
 

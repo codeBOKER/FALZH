@@ -24,6 +24,8 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
 
                 remoteJid = message.get("from")
                 message_id = message.get("id")
+                phone_number = message.get("remote_jid_alt")
+                context_message_id = message.get("context", {}).get("id")
 
                 text = message.get("text", {}).get("body")
                 if not remoteJid or not message_id or text is None:
@@ -42,6 +44,8 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                             profile_name=contacts_by_wa_id.get(remoteJid),
                             phone_number_id=phone_number_id,
                             message_type="text",
+                            context_message_id=context_message_id,
+                            phone_number=phone_number,
                             raw=message,
                         )
                     )
@@ -67,6 +71,8 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                         phone_number_id=phone_number_id,
                         message_type="interactive",
                         interactive_reply_id=reply_id,
+                        context_message_id=context_message_id,
+                        phone_number=phone_number,
                         raw=message,
                     )
                 )
