@@ -1,5 +1,8 @@
+import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from app.database.supabase import SupabaseRepository
 from app.models.domain import ToolResult
@@ -15,7 +18,7 @@ from app.utils.departure import (
     trip_satisfies_departure_request,
 )
 from app.whatsapp.client import WhatsAppClient, WhatsAppClientError
-from app.whatsapp.trip_selection import build_trip_selection_list, build_trip_selection_text
+from app.whatsapp.trip_selection import build_trip_selection_text, format_trip_card
 
 
 class FalsaToolHandlers:
@@ -28,6 +31,7 @@ class FalsaToolHandlers:
         customer: dict[str, Any],
         remoteJid: str,
         embedding_model: str,
+        current_message: dict[str, Any] | None = None,
     ) -> None:
         self.repository = repository
         self.embeddings = embeddings
@@ -35,6 +39,20 @@ class FalsaToolHandlers:
         self.customer = customer
         self.remoteJid = remoteJid
         self.embedding_model = embedding_model
+        self.current_message = current_message
+
+    async def _resolve_trip_id_from_reply(self) -> str | None:
+        if not self.current_message:
+            return None
+        metadata = self.current_message.get("metadata") or {}
+        context_message_id = metadata.get("context_message_id")
+        if not context_message_id:
+            return None
+        original = await self.repository.get_message_by_whatsapp_id(context_message_id)
+        if not original:
+            return None
+        original_meta = original.get("metadata") or {}
+        return original_meta.get("trip_id")
 
     async def about_falsa(self, arguments: dict[str, Any]) -> ToolResult:
         query = str(arguments.get("query") or "").strip()
@@ -143,16 +161,38 @@ class FalsaToolHandlers:
             )
         ])
 
+        top_trips = filtered[:5]
+
+        if top_trips:
+            for trip_summary in top_trips:
+                trip_id = trip_summary["trip_id"]
+                trip = next((t for t in trips if (t.get("trip_id") or t.get("id")) == trip_id), {})
+                card = format_trip_card(trip)
+                try:
+                    resp = await self.whatsapp.send_text(self.remoteJid, card)
+                    wam_id = resp.get("messages", [{}])[0].get("id")
+                    if wam_id:
+                        await self.repository.create_message(
+                            customer_id=str(self.customer["id"]),
+                            sender_type="assistant",
+                            message=card,
+                            whatsapp_message_id=wam_id,
+                            metadata={"trip_id": trip_id, "type": "trip_card"},
+                        )
+                except WhatsAppClientError:
+                    logger.warning("Failed to send trip card for trip %s", trip_id)
+
         return ToolResult(
             ok=True,
             data={
-                "matches": filtered[:5],
-                "count": len(filtered[:5]),
+                "count": len(top_trips),
                 "alternate_alert": alternate_alert,
+                "sent_as_messages": bool(top_trips),
                 "note": (
                     "No active matching trips were found."
-                    if not filtered
-                    else _trip_search_note(alternate_alert)
+                    if not top_trips
+                    else "Trips were sent as separate WhatsApp messages. "
+                          "Ask the user to reply to a trip card to select it."
                 ),
             },
         )
@@ -163,7 +203,9 @@ class FalsaToolHandlers:
         notes = _optional_string(arguments.get("notes"))
 
         if not trip_id:
-            return ToolResult(ok=False, data={}, error="trip_id is required")
+            trip_id = await self._resolve_trip_id_from_reply()
+        if not trip_id:
+            return ToolResult(ok=False, data={}, error="trip_id is required. Ask the user to reply to a trip card message or provide the trip ID.")
         if requested_seats < 1:
             return ToolResult(ok=False, data={}, error="requested_seats must be at least 1")
 
@@ -186,6 +228,7 @@ class FalsaToolHandlers:
             notes=notes,
         )
 
+        driver_phone: str | None = None
         notification_status = "sent"
         notification_error = None
         try:
@@ -194,6 +237,7 @@ class FalsaToolHandlers:
             driver_remote_jid = driver_customer.get("remoteJid") or driver_record.get("remoteJid")
             if not driver_remote_jid:
                 raise WhatsAppClientError("Driver remoteJid is missing")
+            driver_phone = driver_remote_jid.split("@")[0]
             await self.whatsapp.send_text(
                 driver_remote_jid,
                 _driver_notification_text(
@@ -220,6 +264,7 @@ class FalsaToolHandlers:
                 "status": "pending",
                 "driver_notification_status": notification_status,
                 "driver_notification_error": notification_error,
+                "driver_phone": driver_phone,
                 "message": "Booking lead created. Seats are not reserved until confirmed.",
             },
         )
@@ -1033,12 +1078,11 @@ def _driver_notification_text(
     notes: str | None,
 ) -> str:
     return (
-        "New FALSA booking lead\n"
-        f"Customer: {customer.get('name') or customer.get('remoteJid')}\n"
-        f"Remote JID: {customer.get('remoteJid')}\n"
-        f"Trip: {trip.get('departure')} -> {trip.get('destination')}\n"
-        f"Departure: {trip_departure_date(trip)} {trip_departure_bucket(trip)}\n"
-        f"Seats requested: {requested_seats}\n"
-        f"Notes: {notes or '-'}\n"
-        "Status: pending confirmation"
+        "🔔 حجز جديد في فلسا\n"
+        f"العميل: {customer.get('name') or 'عميل جديد'}\n"
+        f"الرحلة: {trip.get('departure')} ← {trip.get('destination')}\n"
+        f"التاريخ: {trip_departure_date(trip)} {trip_departure_bucket(trip)}\n"
+        f"المقاعد المطلوبة: {requested_seats}\n"
+        f"ملاحظات: {notes or 'لا يوجد'}\n"
+        "الحالة: قيد الانتظار"
     )

@@ -17,7 +17,7 @@ def make_handlers(
         embeddings=embeddings or FakeEmbeddings(),
         whatsapp=whatsapp or FakeWhatsApp(),
         customer=customer or {"id": "cust-1", "remoteJid": sender_phone},
-        sender_phone=sender_phone,
+        remoteJid=sender_phone,
         embedding_model="jina-embeddings-v5-text-small",
     )
 

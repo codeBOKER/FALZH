@@ -78,24 +78,37 @@ class ConversationService:
         customer = await self.repository.upsert_customer(
             remote_jid=inbound.remoteJid,
             name=inbound.profile_name,
+            phone_number=inbound.phone_number,
         )
+
+        metadata: dict[str, Any] = {
+            "whatsapp": inbound.raw,
+            "timestamp": inbound.timestamp,
+        }
+        if inbound.context_message_id:
+            metadata["context_message_id"] = inbound.context_message_id
 
         current_message = await self.repository.create_message(
             customer_id=str(customer["id"]),
             sender_type="customer",
             message=inbound.text,
             whatsapp_message_id=inbound.message_id,
-            metadata={"whatsapp": inbound.raw, "timestamp": inbound.timestamp},
+            metadata=metadata,
         )
 
         context = await self.repository.get_recent_context_messages(
             customer_id=str(customer["id"]),
             current_message_id=str(current_message["id"]),
-            limit=4,
+            limit=8,
         )
 
         user_mode = _resolve_user_mode(customer)
-        registry = self._tool_registry(customer, remoteJid=inbound.remoteJid, user_mode=user_mode)
+        registry = self._tool_registry(
+            customer,
+            remoteJid=inbound.remoteJid,
+            user_mode=user_mode,
+            current_message=current_message,
+        )
         reply = await self.ai.generate_reply(
             messages=self._ai_messages(context, user_mode=user_mode),
             tools=get_tool_schemas(user_mode),
@@ -188,11 +201,12 @@ class ConversationService:
                 customer,
                 remoteJid=inbound.remoteJid,
                 user_mode=user_mode,
+                current_message=current_message,
             )
             context = await self.repository.get_recent_context_messages(
                 customer_id=str(customer["id"]),
                 current_message_id=str(current_message["id"]),
-                limit=4,
+                limit=8,
             )
             messages = self._ai_messages(context, user_mode=user_mode)
             messages.append({"role": "system", "content": system_note})
@@ -233,6 +247,7 @@ class ConversationService:
         *,
         remoteJid: str,
         user_mode: UserMode,
+        current_message: dict[str, Any] | None = None,
     ) -> ToolRegistry:
         handlers = FalsaToolHandlers(
             repository=self.repository,
@@ -241,6 +256,7 @@ class ConversationService:
             customer=customer,
             remoteJid=remoteJid,
             embedding_model=self.settings.jina_embedding_model,
+            current_message=current_message,
         )
         registry = ToolRegistry()
         for tool_name in _TOOLS_BY_MODE[user_mode]:
