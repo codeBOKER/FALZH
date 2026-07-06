@@ -115,6 +115,9 @@ class ConversationService:
             registry=registry,
         )
 
+        if not reply:
+            return reply
+
         await self.whatsapp.send_text(inbound.remoteJid, reply)
 
         await self.repository.create_message(

@@ -182,19 +182,35 @@ class FalsaToolHandlers:
                 except WhatsAppClientError:
                     logger.warning("Failed to send trip card for trip %s", trip_id)
 
+            prompt = "يرجى الرد على إحدى بطاقات الرحلات أعلاه لاختيار رحلتك"
+            await self.whatsapp.send_text(self.remoteJid, prompt)
+            await self.repository.create_message(
+                customer_id=str(self.customer["id"]),
+                sender_type="assistant",
+                message=prompt,
+                metadata={"type": "trip_selection_prompt"},
+            )
+
+            return ToolResult(
+                ok=True,
+                data={
+                    "count": len(top_trips),
+                    "matches": top_trips,
+                    "alternate_alert": alternate_alert,
+                    "sent_as_messages": True,
+                    "note": "Cards sent. No text reply needed.",
+                },
+                suppress_llm_reply=True,
+            )
+
         return ToolResult(
             ok=True,
             data={
-                "count": len(top_trips),
-                "matches": top_trips,
+                "count": 0,
+                "matches": [],
                 "alternate_alert": alternate_alert,
-                "sent_as_messages": bool(top_trips),
-                "note": (
-                    "No active matching trips were found."
-                    if not top_trips
-                    else "Trips were sent as separate WhatsApp messages. "
-                          "Ask the user to reply to a trip card to select it."
-                ),
+                "sent_as_messages": False,
+                "note": "No active matching trips were found.",
             },
         )
 

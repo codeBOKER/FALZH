@@ -39,6 +39,7 @@ class ToolResult:
     ok: bool
     data: dict[str, Any]
     error: str | None = None
+    suppress_llm_reply: bool = False
 
     def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"ok": self.ok, "data": self.data}

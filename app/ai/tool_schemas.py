@@ -37,8 +37,8 @@ _SEARCH_TRIPS = {
             "Use when the customer asks for travel options. "
             "You can search with only departure or only destination"
             " — the other will match any location. "
-            "Each matching trip is sent as a separate WhatsApp message. "
-            "The customer can reply to a trip card to select it."
+            "Matching trips are sent as WhatsApp cards and user is prompted to pick one. "
+            "Do NOT add follow-up text — response is handled automatically."
         ),
         "parameters": {
             "type": "object",

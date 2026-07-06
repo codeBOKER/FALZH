@@ -7,7 +7,7 @@ from app.ai.providers import (
     InvalidToolCallGenerationError,
     RetryableProviderError,
 )
-from app.models.domain import AIProviderResponse, ToolCall
+from app.models.domain import AIProviderResponse, ToolCall, ToolResult
 from app.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -93,12 +93,14 @@ class AIOrchestrator:
                 logger.warning("++++++++"+str(tool_call)+ "&&&"+ str(registry))
                 result = await _execute_tool_call(registry, tool_call)
                 logger.warning("+++++++++++++"+str(result))
+                if result.suppress_llm_reply:
+                    return ""
                 working_messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "name": tool_call.name,
-                        "content": json.dumps(result, ensure_ascii=False),
+                        "content": json.dumps(result.to_payload(), ensure_ascii=False),
                     }
                 )
 
@@ -125,12 +127,12 @@ def _assistant_tool_message(response: AIProviderResponse) -> dict[str, Any]:
     }
 
 
-async def _execute_tool_call(registry: ToolRegistry, tool_call: ToolCall) -> dict[str, Any]:
+async def _execute_tool_call(registry: ToolRegistry, tool_call: ToolCall) -> ToolResult:
     try:
         arguments = json.loads(tool_call.arguments or "{}")
         if not isinstance(arguments, dict):
             raise ValueError("Tool arguments must be a JSON object")
     except (json.JSONDecodeError, ValueError) as exc:
-        return {"ok": False, "error": f"Invalid tool arguments: {exc}", "data": {}}
+        return ToolResult(ok=False, data={}, error=f"Invalid tool arguments: {exc}")
 
-    return (await registry.execute(tool_call.name, arguments)).to_payload()
+    return await registry.execute(tool_call.name, arguments)
