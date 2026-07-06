@@ -80,6 +80,47 @@ class ConversationService:
             user_mode=user_mode,
             current_message=current_message,
         )
+
+        if user_mode == "passenger" and inbound.context_message_id:
+            original = await self.repository.get_message_by_whatsapp_id(inbound.context_message_id)
+            if original:
+                orig_meta = original.get("metadata") or {}
+                if orig_meta.get("type") == "trip_card":
+                    trip_id = orig_meta.get("trip_id")
+                    if trip_id:
+                        handlers = FalsaToolHandlers(
+                            repository=self.repository,
+                            embeddings=self.embeddings,
+                            whatsapp=self.whatsapp,
+                            customer=customer,
+                            remoteJid=inbound.remoteJid,
+                            embedding_model=self.settings.jina_embedding_model,
+                            current_message=current_message,
+                        )
+                        result = await handlers.create_booking_lead(
+                            {"trip_id": trip_id, "requested_seats": 1}
+                        )
+                        if result.ok:
+                            driver_phone = result.data.get("driver_phone")
+                            reply = (
+                                f"تم تأكيد الحجز! يمكنك التواصل مع السائق على الرقم: {driver_phone}"
+                                if driver_phone
+                                else "تم تأكيد الحجز! سيتم إشعار السائق."
+                            )
+                        else:
+                            reply = f"عذراً، لم يتم تأكيد الحجز: {result.error}"
+                        await self.whatsapp.send_text(inbound.remoteJid, reply)
+                        await self.repository.create_message(
+                            customer_id=str(customer["id"]),
+                            sender_type="assistant",
+                            message=reply,
+                            metadata={
+                                "provider_flow": "trip_card_reply",
+                                "user_mode": user_mode,
+                            },
+                        )
+                        return reply
+
         reply = await self.ai.generate_reply(
             messages=self._ai_messages(context, user_mode=user_mode),
             tools=get_tool_schemas(user_mode),
