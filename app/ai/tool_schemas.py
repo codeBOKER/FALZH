@@ -33,57 +33,37 @@ _SEARCH_TRIPS = {
     "function": {
         "name": "search_trips",
         "description": (
-            "Search active car or bus trips. "
-            "Use when the customer asks for travel options. "
-            "You can search with only departure or only destination"
-            " — the other will match any location. "
-            "Matching trips are sent as WhatsApp cards and user is prompted to pick one. "
-            "Do NOT add follow-up text — response is handled automatically."
+            "Search active trips by departure/destination (either can be omitted). "
+            "Results sent as WhatsApp cards automatically. "
+            "Times Asia/Aden. Buckets: صباح before 12, ظهر 12-17:59, ليل 18+."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "departure": {
                     "type": "string",
-                    "description": (
-                        "Departure city or area in Arabic. At least one of departure or"
-                        " destination is required — the other can be omitted to match anywhere."
-                    ),
+                    "description": "Departure city/area in Arabic. Required if destination omitted.",
                 },
                 "destination": {
                     "type": "string",
-                    "description": (
-                        "Destination city or area in Arabic. At least one of departure or"
-                        " destination is required — the other can be omitted to match anywhere."
-                    ),
+                    "description": "Destination city/area in Arabic. Required if departure omitted.",
                 },
                 "travel_datetime": {
                     "type": "string",
-                    "description": (
-                        "Optional requested date/time in ISO format. Times are interpreted "
-                        "in Asia/Aden and normalized to morning, noon, or night."
-                    ),
+                    "description": "Optional ISO date+time in Asia/Aden; normalized to the matching time bucket.",
                 },
                 "travel_date": {
                     "type": "string",
-                    "description": (
-                        "Optional requested trip date as YYYY-MM-DD in Asia/Aden. Use English digits."
-                    ),
+                    "description": "Optional trip date YYYY-MM-DD (Asia/Aden).",
                 },
                 "travel_time": {
                     "type": "string",
                     "enum": ["صباح", "ظهر", "ليل"],
-                    "description": (
-                        "Optional requested trip time bucket in Arabic. If the customer also provides "
-                        "an exact time, provide the matching Arabic bucket: صباح before 12:00, ظهر from 12:00-17:59, ليل from 18:00."
-                    ),
+                    "description": "Optional time bucket (Arabic).",
                 },
                 "travel_time_exact": {
                     "type": "string",
-                    "description": (
-                        "Optional exact requested time as HH:MM in Asia/Aden, for example "
-                        "06:00. Use English digits and colon formatting. Also provide the corresponding Arabic travel_time bucket when possible."
-                    ),
+                    "description": "Optional exact time HH:MM (Asia/Aden). Also set the corresponding travel_time bucket.",
                 },
                 "seats": {
                     "type": "integer",
@@ -96,10 +76,7 @@ _SEARCH_TRIPS = {
                 },
                 "vector_query_text": {
                     "type": "string",
-                    "description": (
-                        "Optional natural-language semantic search text. "
-                        "Automatically constructed from the other fields if not provided."
-                    ),
+                    "description": "Optional semantic text; auto-built from other fields.",
                 },
             },
             "required": [],
@@ -113,15 +90,13 @@ _CREATE_BOOKING_LEAD = {
     "function": {
         "name": "create_booking_lead",
         "description": (
-            "Create a pending booking lead (1 seat by default) and notify the driver. "
-            "Call this immediately when the user replies to a trip card — trip_id is "
-            "auto-detected and requested_seats defaults to 1. "
-            "Does not reserve seats or confirm payment."
+            "Create pending booking (default 1 seat), notify driver. "
+            "Call on trip-card reply. Does not reserve or confirm."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "trip_id": {"type": "string", "description": "Selected trip ID. Optional if the customer replied to a trip card message."},
+                "trip_id": {"type": "string", "description": "Trip ID. Optional if replying to a trip card."},
                 "requested_seats": {
                     "type": "integer",
                     "minimum": 1,
@@ -142,10 +117,7 @@ _CREATE_DRIVER_ACCOUNT = {
     "type": "function",
     "function": {
         "name": "create_driver_account",
-        "description": (
-            "Register the current WhatsApp sender as a FALSA driver. "
-            "Phone number is taken automatically from the chat session."
-        ),
+        "description": "Register this WhatsApp sender as a FALSA driver. Phone from chat session.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -164,10 +136,7 @@ _CHECK_DRIVER_INFO = {
     "type": "function",
     "function": {
         "name": "check_driver_info",
-        "description": (
-            "Retrieve the registered driver's account details, registered vehicles, and active trip summary. "
-            "Use when a driver asks about their own profile or vehicle status."
-        ),
+        "description": "Get driver account, vehicles & active trip summary.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -181,10 +150,7 @@ _CHECK_DRIVER_TRIPS = {
     "type": "function",
     "function": {
         "name": "check_driver_trips",
-        "description": (
-            "List all upcoming active trips for the registered driver. "
-            "A trip is considered upcoming if it has status active and has not yet departed."
-        ),
+        "description": "List upcoming active trips (status=active, not departed).",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -198,10 +164,7 @@ _ADD_DRIVER_CAR = {
     "type": "function",
     "function": {
         "name": "add_driver_car",
-        "description": (
-            "Register a new vehicle for the current WhatsApp driver. "
-            "Only the car name is required; plate number and seat count are optional."
-        ),
+        "description": "Register vehicle for current driver. Only name required.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -230,9 +193,8 @@ _ADD_TRIP_BY_DRIVER = {
     "function": {
         "name": "add_trip_by_driver",
         "description": (
-            "Create an active trip for the registered driver on this WhatsApp number. "
-            "Phone is taken from the chat session. Optional car, seat, and price fields "
-            "default from the driver's most recent trip or sole registered vehicle."
+            "Create a trip for the registered driver. Phone from chat session. "
+            "Optional car/seats/price default from latest trip or sole registered vehicle."
         ),
         "parameters": {
             "type": "object",
@@ -251,17 +213,11 @@ _ADD_TRIP_BY_DRIVER = {
                 },
                 "departure_time": {
                     "type": "string",
-                    "description": (
-                        "Trip time bucket: morning, noon, night, or Arabic "
-                        "صباح / ظهر / ليل."
-                    ),
+                    "description": "Time bucket: morning/noon/night or صباح/ظهر/ليل.",
                 },
                 "vehicle_type": {
                     "type": "string",
-                    "description": (
-                        "Optional vehicle name or type in Arabic, for example "
-                        "سيارة or باص. Matched against the driver's registered cars."
-                    ),
+                    "description": "Optional vehicle name/type in Arabic (e.g. سيارة/باص).",
                 },
                 "available_seats": {
                     "type": "integer",
@@ -289,10 +245,7 @@ _INITIATE_TRIP_ACTION = {
     "type": "function",
     "function": {
         "name": "initiate_trip_action",
-        "description": (
-            "Start delete or modify flow for one of the driver's upcoming trips. "
-            "The system sends a numbered list of active trips to the driver in plain text."
-        ),
+        "description": "Start delete/modify flow. Sends numbered trip list.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -303,15 +256,12 @@ _INITIATE_TRIP_ACTION = {
                 },
                 "travel_date": {
                     "type": "string",
-                    "description": (
-                        "Optional trip date filter as YYYY-MM-DD in Asia/Aden when the "
-                        "driver mentioned a specific day such as today or tomorrow."
-                    ),
+                    "description": "Optional trip date filter YYYY-MM-DD (Asia/Aden).",
                 },
                 "travel_time": {
                     "type": "string",
                     "enum": ["صباح", "ظهر", "ليل"],
-                    "description": "Optional departure time bucket filter in Arabic.",
+                    "description": "Departure time bucket in Arabic.",
                 },
             },
             "required": ["action_type"],
@@ -324,10 +274,7 @@ _UPDATE_TRIP_FIELD = {
     "type": "function",
     "function": {
         "name": "update_trip_field",
-        "description": (
-            "Update one field on the trip the driver selected for editing. "
-            "trip_id is resolved automatically from the active edit session."
-        ),
+        "description": "Update one field on the trip the driver is editing. trip_id from active session.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -348,11 +295,7 @@ _UPDATE_TRIP_FIELD = {
                 },
                 "value": {
                     "type": "string",
-                    "description": (
-                        "New value for the field. Use YYYY-MM-DD for dates, HH:MM for "
-                        "pickup_time, Arabic city names for route fields, and English "
-                        "digits for seats and price."
-                    ),
+                    "description": "New value. Dates YYYY-MM-DD, time HH:MM, routes Arabic, seats/price digits.",
                 },
             },
             "required": ["field", "value"],
@@ -365,10 +308,7 @@ _DELETE_TRIP_BY_NUMBER = {
     "type": "function",
     "function": {
         "name": "delete_trip_by_number",
-        "description": (
-            "Cancel an upcoming active trip using the driver-visible trip number. "
-            "Trip numbers are assigned in ascending order from oldest to newest."
-        ),
+        "description": "Cancel a trip by driver-visible number (oldest=1).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -388,10 +328,7 @@ _MODIFY_TRIP_BY_NUMBER = {
     "type": "function",
     "function": {
         "name": "modify_trip_by_number",
-        "description": (
-            "Modify one field of an active driver trip using the driver-visible trip number. "
-            "Trip numbers are assigned in ascending order from oldest to newest."
-        ),
+        "description": "Modify a trip field by driver-visible number (oldest=1).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -417,11 +354,7 @@ _MODIFY_TRIP_BY_NUMBER = {
                 },
                 "value": {
                     "type": "string",
-                    "description": (
-                        "New value for the field. Use YYYY-MM-DD for dates, HH:MM for "
-                        "pickup_time, Arabic city names for route fields, and English "
-                        "digits for seats and price."
-                    ),
+                    "description": "New value. Dates YYYY-MM-DD, time HH:MM, routes Arabic, seats/price digits.",
                 },
             },
             "required": ["trip_number", "field", "value"],
@@ -434,10 +367,7 @@ _SWITCH_TO_DRIVER = {
     "type": "function",
     "function": {
         "name": "switch_to_driver",
-        "description": (
-            "Switch this sender to driver mode. "
-            "Requires an existing driver account; use create_driver_account first if needed."
-        ),
+        "description": "Switch sender to driver mode. Requires existing driver account.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -451,9 +381,7 @@ _SWITCH_TO_PASSENGER = {
     "type": "function",
     "function": {
         "name": "switch_to_passenger",
-        "description": (
-            "Switch this sender to passenger mode so they can search and book trips."
-        ),
+        "description": "Switch sender to passenger mode to search/book trips.",
         "parameters": {
             "type": "object",
             "properties": {

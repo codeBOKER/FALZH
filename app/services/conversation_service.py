@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from app.ai.orchestrator import AIOrchestrator
-from app.ai.tool_schemas import get_tool_schemas
+from app.ai.tool_schemas import _TOOLS_BY_MODE, get_tool_schemas
 from app.config import Settings
 from app.database.supabase import SupabaseRepository
 from app.models.domain import UserMode, WhatsAppInboundMessage
@@ -22,35 +22,6 @@ _PROMPT_PATHS: dict[UserMode, Path] = {
     "driver": Path("prompts/system_driver.md"),
     "passenger": Path("prompts/system_passenger.md"),
 }
-
-_TOOLS_BY_MODE: dict[UserMode, list[str]] = {
-    "new_user": [
-        "about_falsa",
-        "create_driver_account",
-        "switch_to_driver",
-        "switch_to_passenger",
-    ],
-    "driver": [
-        "about_falsa",
-        "check_driver_info",
-        "check_driver_trips",
-        "add_driver_car",
-        "add_trip_by_driver",
-        "delete_trip_by_number",
-        "modify_trip_by_number",
-        "initiate_trip_action",
-        "update_trip_field",
-        "switch_to_passenger",
-    ],
-    "passenger": [
-        "about_falsa",
-        "search_trips",
-        "create_booking_lead",
-        "create_driver_account",
-        "switch_to_driver",
-    ],
-}
-
 
 class ConversationService:
     def __init__(

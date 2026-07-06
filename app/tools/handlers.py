@@ -4,6 +4,11 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_NO_DRIVER_ERROR = (
+    "No driver account for this WhatsApp number. "
+    "Ask the sender to register with create_driver_account first."
+)
+
 from app.database.supabase import SupabaseRepository
 from app.models.domain import ToolResult
 from app.services.embedding_service import JinaEmbeddingService
@@ -323,11 +328,8 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
-            )
+            error=_NO_DRIVER_ERROR,
+        )
 
         customer_info = driver.get("customers", {})
         cars = await self.repository.list_driver_cars(str(driver["id"]))
@@ -361,10 +363,7 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
+                error=_NO_DRIVER_ERROR,
             )
 
         trips = await self.repository.list_driver_trips(str(driver["id"]))
@@ -388,11 +387,8 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
-            )
+            error=_NO_DRIVER_ERROR,
+        )
 
         car_type = _optional_string(arguments.get("name"))
         if not car_type:
@@ -427,11 +423,8 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
-            )
+            error=_NO_DRIVER_ERROR,
+        )
 
         departure = _optional_string(arguments.get("departure"))
         destination = _optional_string(arguments.get("destination"))
@@ -601,10 +594,7 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
+                error=_NO_DRIVER_ERROR,
             )
 
         trips = await self.repository.list_driver_trips(str(driver["id"]))
@@ -658,10 +648,7 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
+                error=_NO_DRIVER_ERROR,
             )
 
         trip_number = _optional_int(arguments.get("trip_number"))
@@ -697,10 +684,7 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
+                error=_NO_DRIVER_ERROR,
             )
 
         trip_number = _optional_int(arguments.get("trip_number"))
@@ -754,11 +738,8 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=False,
                 data={"action": "create_driver_account"},
-                error=(
-                    "No driver account for this WhatsApp number. "
-                    "Ask the sender to register with create_driver_account first."
-                ),
-            )
+            error=_NO_DRIVER_ERROR,
+        )
 
         session = await self.repository.get_customer_session(str(self.customer["id"]))
         trip_id = _optional_string(session.get("active_edit_trip_id"))
