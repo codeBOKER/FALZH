@@ -123,7 +123,7 @@ def test_admin_driver_debug_returns_llm_and_tool_results(settings):
             )
 
     class DummyConversation:
-        def _tool_registry(self, customer, sender_phone, user_mode="driver"):
+        def _tool_registry(self, customer, *, remoteJid, user_mode="driver", current_message=None):
             class DummyRegistry:
                 async def execute(self, name, arguments):
                     return ToolResult(ok=True, data={"name": name, "arguments": arguments})

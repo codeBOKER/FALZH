@@ -468,7 +468,7 @@ class SupabaseRepository:
     async def list_driver_trips(self, driver_id: str) -> list[dict[str, Any]]:
         query = (
             self.client.table("driver_trips")
-            .select("*, driver_cars(*)")
+            .select("*, driver_cars(*), drivers(*)")
             .eq("driver_id", driver_id)
             .eq("status", "active")
         )

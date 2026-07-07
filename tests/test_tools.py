@@ -12,11 +12,16 @@ def make_handlers(
     customer: dict | None = None,
     sender_phone: str = "967700000001",
 ) -> FalsaToolHandlers:
+    repo = repository or FakeRepository()
+    if customer is None:
+        cust = {"id": "cust-1", "remoteJid": sender_phone, "session_data": {}}
+        repo.customers_by_remote_jid[sender_phone] = cust
+        customer = cust
     return FalsaToolHandlers(
-        repository=repository or FakeRepository(),
+        repository=repo,
         embeddings=embeddings or FakeEmbeddings(),
         whatsapp=whatsapp or FakeWhatsApp(),
-        customer=customer or {"id": "cust-1", "remoteJid": sender_phone},
+        customer=customer,
         remoteJid=sender_phone,
         embedding_model="jina-embeddings-v5-text-small",
     )
@@ -302,7 +307,7 @@ async def test_create_driver_account_uses_sender_phone():
 
     assert result.ok is True
     assert repository.created_drivers[0]["customers"]["remoteJid"] == "967700000010"
-    assert repository.drivers_by_remote_jid["967700000010"]["name"] == "Ali Driver"
+    assert result.data["driver_id"] == "driver-1"
 
 
 @pytest.mark.asyncio
@@ -425,7 +430,7 @@ async def test_check_driver_trips_returns_upcoming_trips():
 
     assert result.ok is True
     assert result.data["count"] == 1
-    assert result.data["upcoming_trips"][0]["trip_id"] == "trip-1"
+    assert result.suppress_llm_reply is True
 
 
 @pytest.mark.asyncio
@@ -612,7 +617,7 @@ async def test_switch_to_passenger_without_name():
 
 
 def _driver_setup(repository: FakeRepository, *, phone: str = "967700000010") -> None:
-    repository.drivers_by_phone[phone] = {
+    repository.drivers_by_remote_jid[phone] = {
         "id": "driver-1",
         "name": "Ali",
         "phone_number": phone,
@@ -634,7 +639,7 @@ def _driver_setup(repository: FakeRepository, *, phone: str = "967700000010") ->
 
 
 @pytest.mark.asyncio
-async def test_initiate_trip_action_sends_whatsapp_list():
+async def test_initiate_trip_action_sends_trip_cards():
     repository = FakeRepository()
     whatsapp = FakeWhatsApp()
     _driver_setup(repository)
@@ -648,10 +653,11 @@ async def test_initiate_trip_action_sends_whatsapp_list():
 
     assert result.ok is True
     assert result.data["count"] == 1
-    assert "Pausing for response" in result.data["message"]
-    assert len(whatsapp.interactive_lists) == 1
-    _, interactive = whatsapp.interactive_lists[0]
-    assert interactive["action"]["sections"][0]["rows"][0]["id"] == "DELETE_trip-1"
+    assert result.suppress_llm_reply is True
+    assert len(whatsapp.sent) == 2  # card + prompt
+    card_text = whatsapp.sent[0][1]
+    assert "عدن" in card_text
+    assert "المكلا" in card_text
 
 
 @pytest.mark.asyncio
@@ -666,37 +672,6 @@ async def test_initiate_trip_action_returns_no_trips_message():
     assert result.ok is True
     assert result.data["count"] == 0
     assert "No trips found" in result.data["message"]
-
-
-@pytest.mark.asyncio
-async def test_delete_trip_by_number_cancels_trip():
-    repository = FakeRepository()
-    _driver_setup(repository)
-    handlers = make_handlers(repository=repository, sender_phone="967700000010")
-
-    result = await handlers.delete_trip_by_number({"trip_number": 1})
-
-    assert result.ok is True
-    assert result.data["trip_number"] == 1
-    assert result.data["trip_id"] == "trip-1"
-    assert repository.trips_by_id["trip-1"]["status"] == "cancelled"
-
-
-@pytest.mark.asyncio
-async def test_modify_trip_by_number_updates_trip_field():
-    repository = FakeRepository()
-    _driver_setup(repository)
-    handlers = make_handlers(repository=repository, sender_phone="967700000010")
-
-    result = await handlers.modify_trip_by_number(
-        {"trip_number": 1, "field": "departure", "value": "تعز"}
-    )
-
-    assert result.ok is True
-    assert result.data["trip_number"] == 1
-    assert result.data["field"] == "departure"
-    assert result.data["value"] == "تعز"
-    assert repository.trips_by_id["trip-1"]["departure"] == "تعز"
 
 
 @pytest.mark.asyncio

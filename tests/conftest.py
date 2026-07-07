@@ -167,10 +167,16 @@ class FakeRepository:
                 return customer
         raise KeyError(customer_id)
 
-    async def get_customer_session(self, customer_id: str) -> dict[str, Any]:
-        for customer in self.customers_by_phone.values():
+    def _find_customer_by_id(self, customer_id: str) -> dict[str, Any] | None:
+        for customer in self.customers_by_remote_jid.values():
             if customer["id"] == customer_id:
-                return dict(customer.get("session_data") or {})
+                return customer
+        return None
+
+    async def get_customer_session(self, customer_id: str) -> dict[str, Any]:
+        customer = self._find_customer_by_id(customer_id)
+        if customer:
+            return dict(customer.get("session_data") or {})
         return {}
 
     async def update_customer_session(
@@ -179,10 +185,10 @@ class FakeRepository:
         customer_id: str,
         session_data: dict[str, Any],
     ) -> dict[str, Any]:
-        for customer in self.customers_by_phone.values():
-            if customer["id"] == customer_id:
-                customer["session_data"] = session_data
-                return customer
+        customer = self._find_customer_by_id(customer_id)
+        if customer:
+            customer["session_data"] = session_data
+            return customer
         raise KeyError(customer_id)
 
     async def set_customer_session_field(
@@ -312,6 +318,9 @@ class FakeRepository:
     async def get_driver_by_phone(self, remote_jid: str) -> dict[str, Any] | None:
         return self.drivers_by_remote_jid.get(remote_jid)
 
+    async def get_driver_by_remoteJid(self, remote_jid: str) -> dict[str, Any] | None:
+        return self.drivers_by_remote_jid.get(remote_jid)
+
     async def create_driver(self, *, customer_id: str) -> dict[str, Any]:
         customer = next(
             (customer for customer in self.customers_by_remote_jid.values() if customer["id"] == customer_id),
@@ -322,6 +331,7 @@ class FakeRepository:
         driver = {
             "id": f"driver-{len(self.drivers_by_remote_jid) + 1}",
             "customer_id": customer_id,
+            "name": customer.get("name"),
             "status": "active",
             "customers": customer,
         }
@@ -404,6 +414,22 @@ class FakeRepository:
         trip = self.trips_by_id[trip_id]
         trip.update(updates)
         return trip
+
+    async def get_driver_trip_by_datetime(
+        self,
+        *,
+        driver_id: str,
+        departure_date: Any,
+        departure_time: str,
+    ) -> dict[str, Any] | None:
+        for trip in self.trips_by_id.values():
+            if (
+                str(trip.get("driver_id")) == str(driver_id)
+                and str(trip.get("departure_date")) == str(departure_date)
+                and str(trip.get("departure_time")) == departure_time
+            ):
+                return trip
+        return None
 
     async def cancel_driver_trip(self, trip_id: str) -> dict[str, Any]:
         trip = self.trips_by_id[trip_id]

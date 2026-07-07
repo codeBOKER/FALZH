@@ -12,7 +12,7 @@ _NO_DRIVER_ERROR = (
 from app.database.supabase import SupabaseRepository
 from app.models.domain import ToolResult
 from app.services.embedding_service import JinaEmbeddingService
-from app.services.trip_indexing import index_trip, unindex_trip
+from app.services.trip_indexing import index_trip
 from app.utils.departure import (
     _parse_date_value,
     normalize_departure_bucket,
@@ -23,7 +23,7 @@ from app.utils.departure import (
     trip_satisfies_departure_request,
 )
 from app.whatsapp.client import WhatsAppClient, WhatsAppClientError
-from app.whatsapp.trip_selection import build_trip_selection_text, format_trip_card
+from app.whatsapp.trip_selection import format_trip_card
 
 
 class FalsaToolHandlers:
@@ -370,18 +370,52 @@ class FalsaToolHandlers:
             )
 
         trips = await self.repository.list_driver_trips(str(driver["id"]))
+
+        if not trips:
+            return ToolResult(
+                ok=True,
+                data={
+                    "count": 0,
+                    "message": "No upcoming active trips found.",
+                },
+            )
+
+        for trip in trips[:5]:
+            trip_id = trip.get("trip_id") or trip.get("id")
+            selection_count = await self.repository.count_trip_selections(trip_id)
+            trip["selection_count"] = selection_count
+            card = format_trip_card(trip)
+            try:
+                resp = await self.whatsapp.send_text(self.remoteJid, card)
+                wam_id = resp.get("messages", [{}])[0].get("id")
+                if wam_id:
+                    await self.repository.create_message(
+                        customer_id=str(self.customer["id"]),
+                        sender_type="assistant",
+                        message=card,
+                        whatsapp_message_id=wam_id,
+                        metadata={"trip_id": trip_id, "type": "driver_trip_card"},
+                    )
+            except WhatsAppClientError:
+                logger.warning("Failed to send trip card for trip %s", trip_id)
+
+        prompt = "هذه قائمة رحلاتك المسجلة"
+        await self.whatsapp.send_text(self.remoteJid, prompt)
+        await self.repository.create_message(
+            customer_id=str(self.customer["id"]),
+            sender_type="assistant",
+            message=prompt,
+            metadata={"type": "driver_trip_list_prompt"},
+        )
+
         return ToolResult(
             ok=True,
             data={
-                "driver_id": driver["id"],
-                "upcoming_trips": await self._summarize_trips(trips),
                 "count": len(trips),
-                "message": (
-                    "No upcoming active trips found."
-                    if not trips
-                    else "Upcoming active trips retrieved successfully."
-                ),
+                "sent_as_messages": True,
+                "note": "Trip cards sent. No text reply needed.",
             },
+            suppress_llm_reply=True,
         )
 
     async def add_driver_car(self, arguments: dict[str, Any]) -> ToolResult:
@@ -623,116 +657,44 @@ class FalsaToolHandlers:
                 },
             )
 
-        body = build_trip_selection_text(trips=trips, action_type=action_type)
-        try:
-            await self.whatsapp.send_text(self.remoteJid, body)
-        except WhatsAppClientError as exc:
-            return ToolResult(
-                ok=False,
-                data={"count": len(trips)},
-                error=f"Failed to send WhatsApp trip selection text: {exc}",
-            )
+        action_label = "حذفها" if action_type == "DELETE" else "تعديلها"
+        for trip in trips[:5]:
+            trip_id = trip.get("trip_id") or trip.get("id")
+            selection_count = await self.repository.count_trip_selections(trip_id)
+            trip["selection_count"] = selection_count
+            card = format_trip_card(trip)
+            try:
+                resp = await self.whatsapp.send_text(self.remoteJid, card)
+                wam_id = resp.get("messages", [{}])[0].get("id")
+                if wam_id:
+                    await self.repository.create_message(
+                        customer_id=str(self.customer["id"]),
+                        sender_type="assistant",
+                        message=card,
+                        whatsapp_message_id=wam_id,
+                        metadata={"trip_id": trip_id, "type": "driver_trip_card", "action": action_type},
+                    )
+            except WhatsAppClientError:
+                logger.warning("Failed to send trip card for trip %s", trip_id)
+
+        prompt = f"قم بالرد على بطاقة الرحلة التي تريد {action_label}"
+        await self.whatsapp.send_text(self.remoteJid, prompt)
+        await self.repository.create_message(
+            customer_id=str(self.customer["id"]),
+            sender_type="assistant",
+            message=prompt,
+            metadata={"type": "driver_trip_selection_prompt"},
+        )
 
         return ToolResult(
             ok=True,
             data={
                 "count": len(trips),
                 "action_type": action_type,
-                "message": (
-                    "Sent a numbered trip list to the driver via WhatsApp. "
-                    "Ask them to reply with the trip number."
-                ),
+                "sent_as_messages": True,
+                "note": "Trip cards sent. No text reply needed.",
             },
-        )
-
-    async def delete_trip_by_number(self, arguments: dict[str, Any]) -> ToolResult:
-        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
-        if not driver:
-            return ToolResult(
-                ok=False,
-                data={"action": "create_driver_account"},
-                error=_NO_DRIVER_ERROR,
-            )
-
-        trip_number = _optional_int(arguments.get("trip_number"))
-        if trip_number is None or trip_number < 1:
-            return ToolResult(ok=False, data={}, error="trip_number must be an integer >= 1")
-
-        trips = await self.repository.list_driver_trips(str(driver["id"]))
-        if trip_number > len(trips):
-            return ToolResult(
-                ok=False,
-                data={"count": len(trips)},
-                error=f"trip_number must be between 1 and {len(trips)}",
-            )
-
-        trip = trips[trip_number - 1]
-        await self.repository.cancel_driver_trip(str(trip["id"]))
-        await unindex_trip(repository=self.repository, trip_id=str(trip["id"]))
-
-        return ToolResult(
-            ok=True,
-            data={
-                "trip_number": trip_number,
-                "trip_id": trip.get("id"),
-                "trip": _trip_summary(trip, trip_number=trip_number),
-                "message": "Success! Your trip has been canceled.",
-            },
-        )
-
-    async def modify_trip_by_number(self, arguments: dict[str, Any]) -> ToolResult:
-        print("\n  modefing our new \n")
-        driver = await self.repository.get_driver_by_remoteJid(self.remoteJid)
-        if not driver:
-            return ToolResult(
-                ok=False,
-                data={"action": "create_driver_account"},
-                error=_NO_DRIVER_ERROR,
-            )
-
-        trip_number = _optional_int(arguments.get("trip_number"))
-        field = _optional_string(arguments.get("field"))
-        value = _optional_string(arguments.get("value"))
-        if trip_number is None or trip_number < 1:
-            return ToolResult(ok=False, data={}, error="trip_number must be an integer >= 1")
-        if not field or value is None:
-            return ToolResult(ok=False, data={}, error="field and value are required")
-
-        trips = await self.repository.list_driver_trips(str(driver["id"]))
-        if trip_number > len(trips):
-            return ToolResult(
-                ok=False,
-                data={"count": len(trips)},
-                error=f"trip_number must be between 1 and {len(trips)}",
-            )
-
-        trip = trips[trip_number - 1]
-        updates, error = await self._build_trip_field_update(
-            driver_id=str(driver["id"]),
-            field=field,
-            value=value,
-        )
-        if error:
-            return ToolResult(ok=False, data={}, error=error)
-
-        updated_trip = await self.repository.update_driver_trip(str(trip["id"]), updates)
-        await index_trip(
-            repository=self.repository,
-            embeddings=self.embeddings,
-            embedding_model=self.embedding_model,
-            trip=updated_trip,
-        )
-
-        return ToolResult(
-            ok=True,
-            data={
-                "trip_number": trip_number,
-                "trip_id": updated_trip.get("id"),
-                "field": field,
-                "value": value,
-                "trip": _trip_summary(updated_trip, trip_number=trip_number),
-                "message": "Trip updated successfully.",
-            },
+            suppress_llm_reply=True,
         )
 
     async def update_trip_field(self, arguments: dict[str, Any]) -> ToolResult:

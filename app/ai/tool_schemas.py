@@ -151,7 +151,7 @@ _CHECK_DRIVER_TRIPS = {
     "type": "function",
     "function": {
         "name": "check_driver_trips",
-        "description": "List upcoming active trips (status=active, not departed).",
+        "description": "List upcoming active trips. Sends trip cards directly.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -246,7 +246,7 @@ _INITIATE_TRIP_ACTION = {
     "type": "function",
     "function": {
         "name": "initiate_trip_action",
-        "description": "Start delete/modify flow. Sends numbered trip list.",
+        "description": "Start delete/modify flow. Sends trip cards — driver replies to a card to pick the trip.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -305,65 +305,6 @@ _UPDATE_TRIP_FIELD = {
     },
 }
 
-_DELETE_TRIP_BY_NUMBER = {
-    "type": "function",
-    "function": {
-        "name": "delete_trip_by_number",
-        "description": "Cancel a trip by driver-visible number (oldest=1).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "trip_number": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "The one-based number of the trip from the driver trip list.",
-                },
-            },
-            "required": ["trip_number"],
-            "additionalProperties": False,
-        },
-    },
-}
-
-_MODIFY_TRIP_BY_NUMBER = {
-    "type": "function",
-    "function": {
-        "name": "modify_trip_by_number",
-        "description": "Modify a trip field by driver-visible number (oldest=1).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "trip_number": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "The one-based number of the trip from the driver trip list.",
-                },
-                "field": {
-                    "type": "string",
-                    "enum": [
-                        "departure",
-                        "destination",
-                        "departure_date",
-                        "departure_time",
-                        "pickup_time",
-                        "vehicle_type",
-                        "available_seats",
-                        "total_seats",
-                        "price",
-                    ],
-                    "description": "The trip field to update.",
-                },
-                "value": {
-                    "type": "string",
-                    "description": "New value. Dates YYYY-MM-DD, time HH:MM, routes Arabic, seats/price digits.",
-                },
-            },
-            "required": ["trip_number", "field", "value"],
-            "additionalProperties": False,
-        },
-    },
-}
-
 _SWITCH_TO_DRIVER = {
     "type": "function",
     "function": {
@@ -408,8 +349,6 @@ _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "add_trip_by_driver": _ADD_TRIP_BY_DRIVER,
     "initiate_trip_action": _INITIATE_TRIP_ACTION,
     "update_trip_field": _UPDATE_TRIP_FIELD,
-    "delete_trip_by_number": _DELETE_TRIP_BY_NUMBER,
-    "modify_trip_by_number": _MODIFY_TRIP_BY_NUMBER,
     "switch_to_driver": _SWITCH_TO_DRIVER,
     "switch_to_passenger": _SWITCH_TO_PASSENGER,
 }
@@ -427,8 +366,6 @@ _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
         "check_driver_trips",
         "add_driver_car",
         "add_trip_by_driver",
-        "delete_trip_by_number",
-        "modify_trip_by_number",
         "initiate_trip_action",
         "update_trip_field",
         "switch_to_passenger",

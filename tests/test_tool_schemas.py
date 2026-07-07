@@ -30,4 +30,4 @@ def test_passenger_tools_exclude_driver_management_tools():
 
 def test_all_tool_schemas_include_every_tool():
     names = {schema["function"]["name"] for schema in get_all_tool_schemas()}
-    assert len(names) == 14
+    assert len(names) == 12
