@@ -97,18 +97,18 @@ class ConversationService:
                             embedding_model=self.settings.jina_embedding_model,
                             current_message=current_message,
                         )
-                        result = await handlers.create_booking_lead(
+                        result = await handlers.select_trip(
                             {"trip_id": trip_id, "requested_seats": 1}
                         )
                         if result.ok:
                             driver_phone = result.data.get("driver_phone")
                             reply = (
-                                f"تم تأكيد الحجز! يمكنك التواصل مع السائق على الرقم: {driver_phone}"
+                                f"تم إرسال معلوماتك إلى السائق. يمكنك التواصل معه على الرقم: {driver_phone}"
                                 if driver_phone
-                                else "تم تأكيد الحجز! سيتم إشعار السائق."
+                                else "تم إرسال معلوماتك إلى السائق. سيتم التواصل معك."
                             )
                         else:
-                            reply = f"عذراً، لم يتم تأكيد الحجز: {result.error}"
+                            reply = f"عذراً، لم يتم إرسال الطلب: {result.error}"
                         await self.whatsapp.send_text(inbound.remoteJid, reply)
                         await self.repository.create_message(
                             customer_id=str(customer["id"]),

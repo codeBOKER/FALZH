@@ -222,7 +222,7 @@ async def test_search_trips_includes_alternate_alert_when_first_result_is_over_o
 
 
 @pytest.mark.asyncio
-async def test_create_booking_lead_notifies_driver():
+async def test_select_trip_notifies_driver():
     repository = FakeRepository()
     repository.trips_by_id["trip-1"] = trip()
     whatsapp = FakeWhatsApp()
@@ -232,18 +232,18 @@ async def test_create_booking_lead_notifies_driver():
         customer={"id": "cust-1", "remoteJid": "967700000001", "name": "Mona"},
     )
 
-    result = await handlers.create_booking_lead(
+    result = await handlers.select_trip(
         {"trip_id": "trip-1", "requested_seats": 2, "notes": "Window seat"}
     )
 
     assert result.ok is True
     assert result.data["driver_notification_status"] == "sent"
-    assert repository.booking_leads[0]["requested_seats"] == 2
+    assert repository.trip_selections[0]["requested_seats"] == 2
     assert whatsapp.sent[0][0] == "967700000009"
 
 
 @pytest.mark.asyncio
-async def test_create_booking_lead_uses_driver_phone_number():
+async def test_select_trip_uses_driver_phone_number():
     repository = FakeRepository()
     repository.trips_by_id["trip-1"] = trip(driver_phone_number="967700000099")
     whatsapp = FakeWhatsApp()
@@ -253,7 +253,7 @@ async def test_create_booking_lead_uses_driver_phone_number():
         customer={"id": "cust-1", "remoteJid": "967700000001", "name": "Mona"},
     )
 
-    result = await handlers.create_booking_lead(
+    result = await handlers.select_trip(
         {"trip_id": "trip-1", "requested_seats": 1}
     )
 
@@ -264,7 +264,7 @@ async def test_create_booking_lead_uses_driver_phone_number():
 
 
 @pytest.mark.asyncio
-async def test_create_booking_lead_keeps_pending_when_driver_notification_fails():
+async def test_select_trip_keeps_pending_when_driver_notification_fails():
     repository = FakeRepository()
     repository.trips_by_id["trip-1"] = trip()
     handlers = make_handlers(
@@ -272,7 +272,7 @@ async def test_create_booking_lead_keeps_pending_when_driver_notification_fails(
         whatsapp=FakeWhatsApp(fail=True),
     )
 
-    result = await handlers.create_booking_lead({"trip_id": "trip-1", "requested_seats": 1})
+    result = await handlers.select_trip({"trip_id": "trip-1", "requested_seats": 1})
 
     assert result.ok is True
     assert result.data["status"] == "pending"
@@ -281,16 +281,16 @@ async def test_create_booking_lead_keeps_pending_when_driver_notification_fails(
 
 
 @pytest.mark.asyncio
-async def test_create_booking_lead_rejects_insufficient_seats():
+async def test_select_trip_rejects_insufficient_seats():
     repository = FakeRepository()
     repository.trips_by_id["trip-1"] = trip(available_seats=1)
     handlers = make_handlers(repository=repository)
 
-    result = await handlers.create_booking_lead({"trip_id": "trip-1", "requested_seats": 2})
+    result = await handlers.select_trip({"trip_id": "trip-1", "requested_seats": 2})
 
     assert result.ok is False
     assert result.error == "Not enough available seats"
-    assert repository.booking_leads == []
+    assert repository.trip_selections == []
 
 
 @pytest.mark.asyncio

@@ -92,6 +92,7 @@ def format_trip_card(trip: dict[str, Any]) -> str:
     available = trip.get("available_seats") or 0
     total = trip.get("total_seats") or 0
     price = trip.get("price") or ""
+    selection_count = trip.get("selection_count")
 
     lines = [
         "─" * 14,
@@ -101,6 +102,7 @@ def format_trip_card(trip: dict[str, Any]) -> str:
         f"السعر: {price}" if price else "",
         f"السيارة: {car_type}" if car_type else "",
         f"السائق: {driver_name}" if driver_name else "",
+        f"عدد المهتمين: {selection_count}" if selection_count is not None else "",
         "─" * 14,
     ]
     return "\n".join(line for line in lines if line)

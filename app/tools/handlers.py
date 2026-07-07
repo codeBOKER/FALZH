@@ -171,7 +171,10 @@ class FalsaToolHandlers:
         if top_trips:
             for trip_summary in top_trips:
                 trip_id = trip_summary["trip_id"]
+                selection_count = await self.repository.count_trip_selections(trip_id)
+                trip_summary["selection_count"] = selection_count
                 trip = next((t for t in trips if (t.get("trip_id") or t.get("id")) == trip_id), {})
+                trip["selection_count"] = selection_count
                 card = format_trip_card(trip)
                 try:
                     resp = await self.whatsapp.send_text(self.remoteJid, card)
@@ -219,7 +222,7 @@ class FalsaToolHandlers:
             },
         )
 
-    async def create_booking_lead(self, arguments: dict[str, Any]) -> ToolResult:
+    async def select_trip(self, arguments: dict[str, Any]) -> ToolResult:
         trip_id = _optional_string(arguments.get("trip_id"))
         requested_seats = _optional_int(arguments.get("requested_seats")) or 1
         notes = _optional_string(arguments.get("notes"))
@@ -243,7 +246,7 @@ class FalsaToolHandlers:
                 error="Not enough available seats",
             )
 
-        lead = await self.repository.create_booking_lead(
+        selection = await self.repository.create_trip_selection(
             customer_id=str(self.customer["id"]),
             trip_id=trip_id,
             requested_seats=requested_seats,
@@ -273,8 +276,8 @@ class FalsaToolHandlers:
             notification_status = "failed"
             notification_error = str(exc)
 
-        await self.repository.update_booking_lead_notification(
-            lead_id=str(lead["id"]),
+        await self.repository.update_selection_notification(
+            selection_id=str(selection["id"]),
             status=notification_status,
             metadata={"error": notification_error} if notification_error else None,
         )
@@ -282,12 +285,12 @@ class FalsaToolHandlers:
         return ToolResult(
             ok=True,
             data={
-                "lead_id": lead["id"],
+                "selection_id": selection["id"],
                 "status": "pending",
                 "driver_notification_status": notification_status,
                 "driver_notification_error": notification_error,
                 "driver_phone": driver_phone,
-                "message": "Booking lead created. Seats are not reserved until confirmed.",
+                "message": "Customer interest recorded. Driver has been notified — share their number so the two parties can coordinate directly.",
             },
         )
 
@@ -1019,6 +1022,7 @@ def _trip_summary(trip: dict[str, Any], *, trip_number: int | None = None) -> di
         "status": trip.get("status"),
         "similarity": trip.get("similarity"),
         "time_difference_minutes": trip.get("time_difference_minutes"),
+        "selection_count": trip.get("selection_count", 0),
     }
     if trip_number is not None:
         summary["trip_number"] = trip_number
@@ -1076,12 +1080,12 @@ def _driver_notification_text(
     notes: str | None,
 ) -> str:
     return (
-        "🔔 حجز جديد في فلسا\n"
+        "🔔 اهتمام جديد برحلة في فلسا\n"
         f"العميل: {customer.get('name') or 'عميل جديد'}\n"
         f"رقم العميل: {customer.get('phone_number') or 'غير متوفر'}\n"
         f"الرحلة: {trip.get('departure')} ← {trip.get('destination')}\n"
         f"التاريخ: {trip_departure_date(trip)} {trip_departure_bucket(trip)}\n"
         f"المقاعد المطلوبة: {requested_seats}\n"
         f"ملاحظات: {notes or 'لا يوجد'}\n"
-        "الحالة: قيد الانتظار"
+        "يرجى التواصل مع العميل للاتفاق على الحجز"
     )

@@ -117,7 +117,7 @@ async def test_conversation_uses_passenger_tools_when_user_mode_is_passenger(set
     assert tool_names == {
         "about_falsa",
         "search_trips",
-        "create_booking_lead",
+        "select_trip",
         "create_driver_account",
         "switch_to_driver",
     }

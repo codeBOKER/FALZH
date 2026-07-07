@@ -555,7 +555,7 @@ class SupabaseRepository:
         updated = data[0] if isinstance(data, list) else data
         return await self.get_trip_by_id(str(updated.get("id") or trip_id)) or updated
 
-    async def create_booking_lead(
+    async def create_trip_selection(
         self,
         *,
         customer_id: str,
@@ -571,14 +571,14 @@ class SupabaseRepository:
             "notes": notes,
             "driver_notification_status": "not_sent",
         }
-        response = await self.client.table("booking_leads").insert(payload).execute()
+        response = await self.client.table("trip_selections").insert(payload).execute()
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
 
-    async def update_booking_lead_notification(
+    async def update_selection_notification(
         self,
         *,
-        lead_id: str,
+        selection_id: str,
         status: str,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -586,7 +586,17 @@ class SupabaseRepository:
         if metadata is not None:
             payload["metadata"] = metadata
         response = (
-            await self.client.table("booking_leads").update(payload).eq("id", lead_id).execute()
+            await self.client.table("trip_selections").update(payload).eq("id", selection_id).execute()
         )
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
+
+    async def count_trip_selections(self, trip_id: str) -> int:
+        response = await (
+            self.client.table("trip_selections")
+            .select("id", count="exact")
+            .eq("trip_id", trip_id)
+            .eq("status", "pending")
+            .execute()
+        )
+        return response.count if hasattr(response, "count") and response.count is not None else 0

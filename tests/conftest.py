@@ -106,7 +106,7 @@ class FakeRepository:
         self.created_trips: list[dict[str, Any]] = []
         self.trip_embeddings: list[dict[str, Any]] = []
         self.messages: list[dict[str, Any]] = []
-        self.booking_leads: list[dict[str, Any]] = []
+        self.trip_selections: list[dict[str, Any]] = []
         self.notification_updates: list[dict[str, Any]] = []
         self.trips_by_id: dict[str, dict[str, Any]] = {}
         self.active_search_results: list[dict[str, Any]] = []
@@ -277,7 +277,7 @@ class FakeRepository:
         match_count = int(kwargs.get("match_count") or 10)
         return self.trip_vector_search_results[:match_count]
 
-    async def create_booking_lead(
+    async def create_trip_selection(
         self,
         *,
         customer_id: str,
@@ -285,26 +285,29 @@ class FakeRepository:
         requested_seats: int,
         notes: str | None,
     ) -> dict[str, Any]:
-        lead = {
-            "id": f"lead-{len(self.booking_leads) + 1}",
+        selection = {
+            "id": f"sel-{len(self.trip_selections) + 1}",
             "customer_id": customer_id,
             "trip_id": trip_id,
             "requested_seats": requested_seats,
             "notes": notes,
         }
-        self.booking_leads.append(lead)
-        return lead
+        self.trip_selections.append(selection)
+        return selection
 
-    async def update_booking_lead_notification(
+    async def update_selection_notification(
         self,
         *,
-        lead_id: str,
+        selection_id: str,
         status: str,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        update = {"lead_id": lead_id, "status": status, "metadata": metadata}
+        update = {"selection_id": selection_id, "status": status, "metadata": metadata}
         self.notification_updates.append(update)
         return update
+
+    async def count_trip_selections(self, trip_id: str) -> int:
+        return sum(1 for s in self.trip_selections if s["trip_id"] == trip_id)
 
     async def get_driver_by_phone(self, remote_jid: str) -> dict[str, Any] | None:
         return self.drivers_by_remote_jid.get(remote_jid)

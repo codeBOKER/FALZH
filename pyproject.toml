@@ -1,7 +1,7 @@
 [project]
 name = "falsa"
 version = "0.1.0"
-description = "AI-powered WhatsApp travel booking customer service backend"
+description = "AI-powered WhatsApp travel service backend"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

@@ -85,12 +85,13 @@ _SEARCH_TRIPS = {
     },
 }
 
-_CREATE_BOOKING_LEAD = {
+_SELECT_TRIP = {
     "type": "function",
     "function": {
-        "name": "create_booking_lead",
+        "name": "select_trip",
         "description": (
-            "Create pending booking (default 1 seat), notify driver. "
+            "Record customer interest in a trip (default 1 seat), notify driver, "
+            "and return driver phone number so they can coordinate directly. "
             "Call on trip-card reply. Does not reserve or confirm."
         ),
         "parameters": {
@@ -399,7 +400,7 @@ _SWITCH_TO_PASSENGER = {
 _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "about_falsa": _ABOUT_FALSA,
     "search_trips": _SEARCH_TRIPS,
-    "create_booking_lead": _CREATE_BOOKING_LEAD,
+    "select_trip": _SELECT_TRIP,
     "create_driver_account": _CREATE_DRIVER_ACCOUNT,
     "check_driver_info": _CHECK_DRIVER_INFO,
     "check_driver_trips": _CHECK_DRIVER_TRIPS,
@@ -435,7 +436,7 @@ _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
     "passenger": [
         "about_falsa",
         "search_trips",
-        "create_booking_lead",
+        "select_trip",
         "create_driver_account",
         "switch_to_driver",
     ],

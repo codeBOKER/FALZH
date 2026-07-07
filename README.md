@@ -1,6 +1,6 @@
 # FALSA
 
-> **AI-powered travel booking assistant — on WhatsApp.**
+> **AI-powered travel service — on WhatsApp.**
 
 > **🚧 Work in progress — not yet published. Coming soon.**
 
@@ -8,7 +8,7 @@
   <img src="assets/Falsa.png" alt="FALSA logo" width="100%">
 </p>
 
-FALSA lets passengers search trips and book seats, and lets drivers publish, update, and manage their trips — all through a natural conversation on WhatsApp. No app to install, no complex UI to learn. Just type what you want.
+FALSA lets passengers search trips and connect with drivers, and lets drivers publish, update, and manage their trips — all through a natural conversation on WhatsApp. No app to install, no complex UI to learn. Just type what you want.
 
 ---
 
@@ -25,8 +25,8 @@ Travel booking platforms in my country are poorly adopted. Not because people do
 
 FALSA removes all of that. The entire interface is a single chat conversation. **You say where you're going and when — FALSA handles the rest.**
 
-- **Passengers** describe their trip in natural language; FALSA searches available trips, shows options, and helps book.
-- **Drivers** publish trips, manage schedules, and receive booking leads — all by chatting.
+- **Passengers** describe their trip in natural language; FALSA searches available trips, shows options, and connects them with drivers.
+- **Drivers** publish trips, manage schedules, and receive trip interest notifications — all by chatting.
 - No app install, no account creation flow, no confusing dashboard.
 
 ---
@@ -35,8 +35,8 @@ FALSA removes all of that. The entire interface is a single chat conversation. *
 
 - **Natural-language trip search** — "I want to go from Sana'a to Taiz tomorrow morning"
 - **WhatsApp-native interaction** — interactive lists, text replies, no extra UI
-- **Driver tools** — publish trips, add cars, modify/delete trips, receive booking notifications
-- **Passenger tools** — search trips, create booking leads, get FALSA information
+- **Driver tools** — publish trips, add cars, modify/delete trips, receive trip interest notifications
+- **Passenger tools** — search trips, select trips, get driver contact, get FALSA information
 - **AI-powered orchestration** — tool-calling LLM (Groq primary, Hugging Face fallback) routes intent to the right action
 - **RAG knowledge base** — company info, pricing, policies embedded via Jina AI and retrieved on demand
 - **Trip vector search** — semantic search over driver trips for flexible departure matching
