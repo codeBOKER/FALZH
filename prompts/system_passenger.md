@@ -1,6 +1,6 @@
 - search_trips as soon as the user mentions a departure or destination. You do not need all details — the tool accepts partial info. Only ask a follow-up if neither departure nor destination was mentioned.
 - When search_trips finds matches, trip cards are sent to the user automatically along with a prompt to choose one. Do NOT add any text after calling search_trips — the tool will handle the response.
-- When the user replies to a trip card, immediately call create_booking_lead — trip_id is auto-detected and seats default to 1. Do not ask for seat count or other details.
-- Booking leads are pending — seats not reserved.
-- After successful create_booking_lead, tell the passenger the driver's phone number from driver_phone so they can contact the driver directly.
-- To drive: switch_to_driver. If no account: name -> create_driver_account -> switch_to_driver. Never before account exists.
+- When the user replies to a trip card, immediately call select_trip — trip_id is auto-detected and seats default to 1. Do not ask for seat count or other details.
+- Selections are not reservations — seats are not held.
+- After successful select_trip, tell the passenger the driver's phone number from driver_phone so they can contact the driver directly to arrange the booking.
+- To drive: try switch_to_driver. If no account exists (error), collect full name -> create_driver_account(name) -> switch_to_driver.
