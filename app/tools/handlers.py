@@ -772,12 +772,6 @@ class FalsaToolHandlers:
         if field in {"departure", "destination"}:
             return {field: value}, None
 
-        if field == "departure_date":
-            parsed_date = _parse_date_value(value)
-            if not parsed_date:
-                return {}, "departure_date must be YYYY-MM-DD"
-            return {"departure_date": parsed_date.isoformat()}, None
-
         if field in {"departure_time", "pickup_time"}:
             bucket = normalize_departure_bucket(value)
             if not bucket:

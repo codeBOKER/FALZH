@@ -275,7 +275,7 @@ _UPDATE_TRIP_FIELD = {
     "type": "function",
     "function": {
         "name": "update_trip_field",
-        "description": "Update one field on the trip the driver is editing. trip_id from active session.",
+        "description": "Update one field on the trip the driver is editing. trip_id from active session. Note: departure_date cannot be changed once the trip is created.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -284,7 +284,6 @@ _UPDATE_TRIP_FIELD = {
                     "enum": [
                         "departure",
                         "destination",
-                        "departure_date",
                         "departure_time",
                         "pickup_time",
                         "vehicle_type",
@@ -292,11 +291,11 @@ _UPDATE_TRIP_FIELD = {
                         "total_seats",
                         "price",
                     ],
-                    "description": "Trip field to update.",
+                    "description": "Trip field to update. departure_date is not allowed.",
                 },
                 "value": {
                     "type": "string",
-                    "description": "New value. Dates YYYY-MM-DD, time HH:MM, routes Arabic, seats/price digits.",
+                    "description": "New value. time HH:MM, routes Arabic, seats/price digits. Do NOT include date — departure_date cannot be changed.",
                 },
             },
             "required": ["field", "value"],
