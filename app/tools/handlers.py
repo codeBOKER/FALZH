@@ -1036,7 +1036,7 @@ def _driver_notification_text(
     notes: str | None,
 ) -> str:
     return (
-        "🔔 اهتمام جديد برحلة في فلسا\n"
+        "🔔 اهتمام جديد برحلة في فلزا\n"
         f"العميل: {customer.get('name') or 'عميل جديد'}\n"
         f"رقم العميل: {customer.get('phone_number') or 'غير متوفر'}\n"
         f"الرحلة: {trip.get('departure')} ← {trip.get('destination')}\n"
