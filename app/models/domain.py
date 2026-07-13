@@ -17,7 +17,23 @@ class WhatsAppInboundMessage:
     interactive_reply_id: str | None = None
     context_message_id: str | None = None
     phone_number: str | None = None
+    is_group: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ExtractedTrip:
+    is_trip_ad: bool
+    departure: str | None = None
+    destination: str | None = None
+    departure_date: str | None = None
+    departure_time: str | None = None
+    available_seats: int | None = None
+    total_seats: int | None = None
+    price: float | None = None
+    car_type: str | None = None
+    driver_name: str | None = None
+    driver_phone: str | None = None
 
 
 @dataclass(slots=True)

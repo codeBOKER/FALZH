@@ -253,28 +253,31 @@ class FalsaToolHandlers:
             notes=notes,
         )
 
-        driver_phone: str | None = None
-        notification_status = "sent"
+        driver_record = _first_or_dict(trip.get("drivers")) or {}
+        driver_customer = driver_record.get("customers") or {}
+        driver_recipient = driver_customer.get("phone_number") or driver_customer.get("remoteJid") or driver_record.get("remoteJid")
+        driver_phone = driver_recipient.split("@")[0] if driver_recipient else None
+
+        notification_status = "not_sent"
         notification_error = None
-        try:
-            driver_record = _first_or_dict(trip.get("drivers")) or {}
-            driver_customer = driver_record.get("customers") or {}
-            driver_recipient = driver_customer.get("phone_number") or driver_customer.get("remoteJid") or driver_record.get("remoteJid")
-            if not driver_recipient:
-                raise WhatsAppClientError("Driver recipient is missing")
-            driver_phone = driver_recipient.split("@")[0]
-            await self.whatsapp.send_text(
-                driver_recipient,
-                _driver_notification_text(
-                    customer=self.customer,
-                    trip=trip,
-                    requested_seats=requested_seats,
-                    notes=notes,
-                ),
-            )
-        except Exception as exc:  # noqa: BLE001
-            notification_status = "failed"
-            notification_error = str(exc)
+
+        is_registered = _driver_is_registered(trip)
+
+        if is_registered and driver_recipient:
+            try:
+                await self.whatsapp.send_text(
+                    driver_recipient,
+                    _driver_notification_text(
+                        customer=self.customer,
+                        trip=trip,
+                        requested_seats=requested_seats,
+                        notes=notes,
+                    ),
+                )
+                notification_status = "sent"
+            except Exception as exc:  # noqa: BLE001
+                notification_status = "failed"
+                notification_error = str(exc)
 
         await self.repository.update_selection_notification(
             selection_id=str(selection["id"]),
@@ -290,7 +293,7 @@ class FalsaToolHandlers:
                 "driver_notification_status": notification_status,
                 "driver_notification_error": notification_error,
                 "driver_phone": driver_phone,
-                "message": "Customer interest recorded. Driver has been notified — share their number so the two parties can coordinate directly.",
+                "message": "Customer interest recorded. Share driver number so the two parties can coordinate directly.",
             },
         )
 
@@ -979,6 +982,7 @@ def _trip_summary(trip: dict[str, Any], *, trip_number: int | None = None) -> di
         "similarity": trip.get("similarity"),
         "time_difference_minutes": trip.get("time_difference_minutes"),
         "selection_count": trip.get("selection_count", 0),
+        "registered": _driver_is_registered(trip),
     }
     if trip_number is not None:
         summary["trip_number"] = trip_number
@@ -990,6 +994,7 @@ def _sort_trip_summaries(trips: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
         trips,
         key=lambda trip: (
+            not trip.get("registered", False),
             str(trip.get("departure_date") or ""),
             bucket_order.get(str(trip.get("departure_time_type") or ""), 99),
         ),
@@ -1002,6 +1007,20 @@ def _first_or_dict(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
         return value
     return None
+
+
+def _driver_is_registered(trip: dict[str, Any]) -> bool:
+    drivers = trip.get("drivers")
+    if isinstance(drivers, list):
+        drivers = drivers[0] if drivers else {}
+    if not isinstance(drivers, dict):
+        return False
+    customer = drivers.get("customers")
+    if isinstance(customer, list):
+        customer = customer[0] if customer else {}
+    if not isinstance(customer, dict):
+        return False
+    return bool(customer.get("registered", False))
 
 
 def _alternate_time_alert(trips: list[dict[str, Any]]) -> str | None:

@@ -40,7 +40,7 @@ async def test_conversation_stores_messages_uses_last_four_context_and_sends_rep
 
     ai_messages = ai.calls[0]["messages"]
     assert ai_messages[0]["role"] == "system"
-    assert "travel as passenger" in ai_messages[0]["content"]
+    assert "FALSA" in ai_messages[0]["content"]
     context_contents = [message["content"] for message in ai_messages[1:]]
     assert context_contents[-1] == "Aden to Mukalla tomorrow"
     assert len(context_contents) <= 9

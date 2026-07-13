@@ -50,6 +50,7 @@ class ConversationService:
             remote_jid=inbound.remoteJid,
             name=inbound.profile_name,
             phone_number=inbound.phone_number,
+            registered=True,
         )
 
         metadata: dict[str, Any] = {
@@ -103,9 +104,9 @@ class ConversationService:
                         if result.ok:
                             driver_phone = result.data.get("driver_phone")
                             reply = (
-                                f"تم إرسال معلوماتك إلى السائق. يمكنك التواصل معه على الرقم: {driver_phone}"
+                                f"يمكنك التواصل مع السائق على الرقم: {driver_phone}"
                                 if driver_phone
-                                else "تم إرسال معلوماتك إلى السائق. سيتم التواصل معك."
+                                else "يمكنك التواصل مع السائق"
                             )
                         else:
                             reply = f"عذراً، لم يتم إرسال الطلب: {result.error}"

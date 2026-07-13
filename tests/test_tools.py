@@ -38,10 +38,12 @@ def trip(
     status="active",
     car_type="SUV",
     driver_phone_number=None,
+    registered=True,
 ):
-    drivers = {"name": "Ali", "remoteJid": "967700000009"}
+    customers: dict = {"registered": registered}
     if driver_phone_number is not None:
-        drivers["customers"] = {"phone_number": driver_phone_number}
+        customers["phone_number"] = driver_phone_number
+    drivers = {"name": "Ali", "remoteJid": "967700000009", "customers": customers}
     return {
         "id": trip_id,
         "departure": departure,

@@ -23,6 +23,7 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                     continue
 
                 remoteJid = message.get("from")
+                is_group = isinstance(remoteJid, str) and remoteJid.endswith("@g.us")
                 message_id = message.get("id")
                 phone_number = message.get("remote_jid_alt")
                 context_message_id = message.get("context", {}).get("id")
@@ -46,6 +47,7 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                             message_type="text",
                             context_message_id=context_message_id,
                             phone_number=phone_number,
+                            is_group=is_group,
                             raw=message,
                         )
                     )
@@ -73,6 +75,7 @@ def parse_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                         interactive_reply_id=reply_id,
                         context_message_id=context_message_id,
                         phone_number=phone_number,
+                        is_group=is_group,
                         raw=message,
                     )
                 )

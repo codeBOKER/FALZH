@@ -68,7 +68,14 @@ async def receive_whatsapp_webhook(
     payload: dict[str, Any] = await request.json()
     messages = parse_inbound_messages(payload)
     for inbound in messages:
-        background_tasks.add_task(container.conversation.handle_inbound_message, inbound)
+        if inbound.is_group:
+            background_tasks.add_task(
+                container.group_message.handle_group_message, inbound
+            )
+        else:
+            background_tasks.add_task(
+                container.conversation.handle_inbound_message, inbound
+            )
 
     return WebhookAcceptedResponse(messages=len(messages))
 
@@ -90,9 +97,12 @@ async def receive_whatsapp_webhook_debug(
     messages = parse_inbound_messages(payload)
     replies: list[str] = []
     for inbound in messages:
-        reply = await container.conversation.handle_inbound_message(inbound)
-        if reply is not None:
-            replies.append(reply)
+        if inbound.is_group:
+            await container.group_message.handle_group_message(inbound)
+        else:
+            reply = await container.conversation.handle_inbound_message(inbound)
+            if reply is not None:
+                replies.append(reply)
 
     return WebhookDebugResponse(messages=len(messages), replies=replies)
 
