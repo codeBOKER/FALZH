@@ -145,7 +145,8 @@ async def test_search_trips_requires_at_least_departure_or_destination():
     result = await handlers.search_trips({"seats": 2})
 
     assert result.ok is False
-    assert "departure or destination" in (result.error or "")
+    assert "departure" in (result.error or "")
+    assert "driver name" in (result.error or "")
 
 
 @pytest.mark.asyncio
