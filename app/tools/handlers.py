@@ -96,6 +96,7 @@ class FalsaToolHandlers:
     async def search_trips(self, arguments: dict[str, Any]) -> ToolResult:
         departure = _optional_string(arguments.get("departure"))
         destination = _optional_string(arguments.get("destination"))
+        driver_name = _optional_string(arguments.get("driver_name"))
         travel_date = _optional_string(arguments.get("travel_date"))
         travel_time = _optional_string(arguments.get("travel_time"))
         travel_time_exact = _optional_string(arguments.get("travel_time_exact"))
@@ -114,16 +115,20 @@ class FalsaToolHandlers:
             exact_time=travel_time_exact,
         )
 
-        if not departure and not destination:
+        if not departure and not destination and not driver_name:
             return ToolResult(
                 ok=False,
                 data={},
-                error="At least departure or destination is required before searching trips",
+                error=(
+                    "At least departure, destination, or driver name"
+                    " is required before searching trips"
+                ),
             )
 
         query = vector_query_text or _trip_vector_query_text(
             departure=departure,
             destination=destination,
+            driver_name=driver_name,
             travel_date=travel_date,
             travel_time=travel_time,
             travel_time_exact=travel_time_exact,
@@ -136,6 +141,7 @@ class FalsaToolHandlers:
             query_embedding=query_embedding,
             departure=departure,
             destination=destination,
+            driver_name=driver_name,
             departure_date=departure_request.departure_date,
             departure_time=departure_request.departure_time,
             requested_time=requested_time,
@@ -147,6 +153,7 @@ class FalsaToolHandlers:
             trips = await self.repository.search_active_trips(
                 departure=departure,
                 destination=destination,
+                driver_name=driver_name,
                 seats=seats,
                 vehicle_type=vehicle_type,
                 departure_request=departure_request,
@@ -160,6 +167,7 @@ class FalsaToolHandlers:
                 trip,
                 departure=departure,
                 destination=destination,
+                driver_name=driver_name,
                 seats=seats,
                 vehicle_type=vehicle_type,
                 departure_request=departure_request,
@@ -911,6 +919,7 @@ def _trip_vector_query_text(
     *,
     departure: str | None,
     destination: str | None,
+    driver_name: str | None,
     travel_date: str | None,
     travel_time: str | None,
     travel_time_exact: str | None,
@@ -923,6 +932,7 @@ def _trip_vector_query_text(
         for part in [
             departure,
             destination,
+            driver_name,
             travel_date,
             travel_time_exact,
             travel_time,
@@ -939,6 +949,7 @@ def _is_trip_match(
     *,
     departure: str | None,
     destination: str | None,
+    driver_name: str | None,
     seats: int,
     vehicle_type: str | None,
     departure_request: Any,
@@ -951,6 +962,10 @@ def _is_trip_match(
         return False
     if destination and destination.lower() not in str(trip.get("destination") or "").lower():
         return False
+    if driver_name:
+        trip_driver_name = str(trip.get("driver_name") or "").lower()
+        if driver_name.lower() not in trip_driver_name:
+            return False
     if vehicle_type:
         car = _first_or_dict(trip.get("driver_cars")) or {}
         car_type = car.get("car_type") or trip.get("car_type")

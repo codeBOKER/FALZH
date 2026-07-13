@@ -33,7 +33,7 @@ _SEARCH_TRIPS = {
     "function": {
         "name": "search_trips",
         "description": (
-            "Search active trips by departure/destination (either can be omitted). "
+            "Search active trips by departure/destination/driver name (any can be omitted). "
             "Results sent as WhatsApp cards automatically. "
             "Times Asia/Aden. Buckets: صباح before 12, ظهر 12-17:59, ليل 18+."
         ),
@@ -73,6 +73,10 @@ _SEARCH_TRIPS = {
                 "vehicle_type": {
                     "type": "string",
                     "description": "Optional car type in Arabic, for example سيارة or باص.",
+                },
+                "driver_name": {
+                    "type": "string",
+                    "description": "Optional driver name to filter trips by driver.",
                 },
                 "vector_query_text": {
                     "type": "string",

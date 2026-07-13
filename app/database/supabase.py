@@ -354,6 +354,7 @@ class SupabaseRepository:
         *,
         departure: str | None = None,
         destination: str | None = None,
+        driver_name: str | None = None,
         seats: int | None = None,
         vehicle_type: str | None = None,
         departure_request: DepartureRequest | None = None,
@@ -370,6 +371,11 @@ class SupabaseRepository:
             query = query.ilike("departure", f"%{departure}%")
         if destination:
             query = query.ilike("destination", f"%{destination}%")
+        if driver_name:
+            driver_ids = await self._resolve_driver_ids_by_name(driver_name)
+            if not driver_ids:
+                return []
+            query = query.in_("driver_id", driver_ids)
         if seats:
             query = query.gte("available_seats", seats)
         if vehicle_type:
@@ -407,6 +413,7 @@ class SupabaseRepository:
         query_embedding: list[float],
         departure: str | None = None,
         destination: str | None = None,
+        driver_name: str | None = None,
         departure_date: date | None = None,
         departure_time: str | None = None,
         requested_time: time | None = None,
@@ -423,6 +430,7 @@ class SupabaseRepository:
                     "match_threshold": 0.0,
                     "filter_departure": departure,
                     "filter_destination": destination,
+                    "filter_driver_name": driver_name,
                     "filter_departure_date": (
                         departure_date.isoformat() if departure_date else None
                     ),
@@ -467,6 +475,24 @@ class SupabaseRepository:
             .eq("trip_id", trip_id)
             .execute()
         )
+
+    async def _resolve_driver_ids_by_name(self, driver_name: str) -> list[str]:
+        customers_resp = (
+            await self.client.table("customers")
+            .select("id")
+            .ilike("name", f"%{driver_name}%")
+            .execute()
+        )
+        customer_ids = [c["id"] for c in (_response_data(customers_resp) or [])]
+        if not customer_ids:
+            return []
+        drivers_resp = (
+            await self.client.table("drivers")
+            .select("id")
+            .in_("customer_id", customer_ids)
+            .execute()
+        )
+        return [d["id"] for d in (_response_data(drivers_resp) or [])]
 
     def _apply_departure_request_filter(
         self,

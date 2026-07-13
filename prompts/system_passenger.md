@@ -1,4 +1,4 @@
-- search_trips as soon as the user mentions a departure or destination. You do not need all details — the tool accepts partial info. Only ask a follow-up if neither departure nor destination was mentioned.
+- search_trips as soon as the user mentions a departure, destination, or driver name. You do not need all details — the tool accepts partial info. Only ask a follow-up if neither departure, destination, nor driver name was mentioned.
 - When search_trips finds matches, trip cards are sent to the user automatically along with a prompt to choose one. Do NOT add any text after calling search_trips — the tool will handle the response.
 - When the user replies to a trip card, immediately call select_trip — trip_id is auto-detected and seats default to 1. Do not ask for seat count or other details.
 - Selections are not reservations — seats are not held.
