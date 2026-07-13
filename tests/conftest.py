@@ -99,6 +99,7 @@ def test_app(settings: Settings) -> Any:
 class FakeRepository:
     def __init__(self) -> None:
         self.customers_by_remote_jid: dict[str, dict[str, Any]] = {}
+        self.customers_by_phone: dict[str, dict[str, Any]] = {}
         self.drivers_by_remote_jid: dict[str, dict[str, Any]] = {}
         self.driver_cars_by_driver: dict[str, list[dict[str, Any]]] = {}
         self.latest_trips_by_driver: dict[str, dict[str, Any]] = {}
@@ -121,6 +122,7 @@ class FakeRepository:
         name: str | None = None,
         preferred_language: str | None = None,
         phone_number: str | None = None,
+        registered: bool = True,
     ) -> dict[str, Any]:
         jid = remote_jid or phone_number
         if not jid:
@@ -135,12 +137,17 @@ class FakeRepository:
                 "phone_number": phone_number,
                 "user_mode": None,
                 "session_data": {},
+                "registered": registered,
             }
             self.customers_by_remote_jid[jid] = customer
+            if phone_number:
+                self.customers_by_phone[phone_number] = customer
         elif name:
             customer["name"] = name
         if phone_number:
             customer["phone_number"] = phone_number
+            self.customers_by_phone[phone_number] = customer
+        customer["registered"] = registered
         return customer
 
     async def update_customer_user_mode(
@@ -166,6 +173,102 @@ class FakeRepository:
                 customer["name"] = name
                 return customer
         raise KeyError(customer_id)
+
+    async def get_customer_by_phone_number(
+        self,
+        phone_number: str,
+    ) -> dict[str, Any] | None:
+        return self.customers_by_phone.get(phone_number)
+
+    async def create_unregistered_driver_entities(
+        self,
+        *,
+        phone_number: str,
+        driver_name: str | None,
+        car_type: str | None,
+        departure: str,
+        destination: str,
+        departure_date: Any,
+        departure_time: str,
+        available_seats: int,
+        total_seats: int,
+        price: float,
+    ) -> dict[str, Any]:
+        customer = await self.upsert_customer(
+            remote_jid=phone_number,
+            name=driver_name,
+            phone_number=phone_number,
+            registered=False,
+        )
+        driver = await self.create_driver(customer_id=str(customer["id"]))
+        car = await self.create_driver_car(
+            driver_id=str(driver["id"]),
+            car_type=car_type or "غير معروف",
+            seat_count=total_seats,
+        )
+        trip = await self.create_driver_trip(
+            driver_id=str(driver["id"]),
+            car_id=str(car["id"]),
+            departure=departure,
+            destination=destination,
+            departure_date=departure_date,
+            departure_time=departure_time,
+            available_seats=available_seats,
+            total_seats=total_seats,
+            price=price,
+        )
+        return trip
+
+    async def create_unregistered_driver_trip(
+        self,
+        *,
+        driver_id: str | None,
+        phone_number: str,
+        driver_name: str | None,
+        car_type: str | None,
+        departure: str,
+        destination: str,
+        departure_date: Any,
+        departure_time: str,
+        available_seats: int,
+        total_seats: int,
+        price: float,
+    ) -> dict[str, Any]:
+        if not driver_id:
+            return await self.create_unregistered_driver_entities(
+                phone_number=phone_number,
+                driver_name=driver_name,
+                car_type=car_type,
+                departure=departure,
+                destination=destination,
+                departure_date=departure_date,
+                departure_time=departure_time,
+                available_seats=available_seats,
+                total_seats=total_seats,
+                price=price,
+            )
+
+        cars = self.driver_cars_by_driver.get(driver_id, [])
+        car = cars[0] if cars else None
+        if not car:
+            car = await self.create_driver_car(
+                driver_id=driver_id,
+                car_type=car_type or "غير معروف",
+                seat_count=total_seats,
+            )
+
+        trip = await self.create_driver_trip(
+            driver_id=driver_id,
+            car_id=str(car["id"]),
+            departure=departure,
+            destination=destination,
+            departure_date=departure_date,
+            departure_time=departure_time,
+            available_seats=available_seats,
+            total_seats=total_seats,
+            price=price,
+        )
+        return trip
 
     def _find_customer_by_id(self, customer_id: str) -> dict[str, Any] | None:
         for customer in self.customers_by_remote_jid.values():

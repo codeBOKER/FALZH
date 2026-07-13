@@ -7,6 +7,7 @@ from app.database.supabase import SupabaseRepository, create_supabase_client
 from app.services.admin_service import AdminService
 from app.services.conversation_service import ConversationService
 from app.services.embedding_service import JinaEmbeddingService
+from app.services.group_message_service import GroupMessageService
 from app.whatsapp.client import WhatsAppClient
 
 
@@ -18,6 +19,7 @@ class ServiceContainer:
     whatsapp: WhatsAppClient
     ai: AIOrchestrator
     conversation: ConversationService
+    group_message: GroupMessageService
     admin: AdminService
 
     @classmethod
@@ -39,6 +41,12 @@ class ServiceContainer:
             ai=ai,
             settings=settings,
         )
+        group_message = GroupMessageService(
+            repository=repository,
+            embeddings=embeddings,
+            provider=ai.primary,
+            settings=settings,
+        )
         admin = AdminService(repository=repository, embeddings=embeddings, settings=settings)
         return cls(
             settings=settings,
@@ -47,5 +55,6 @@ class ServiceContainer:
             whatsapp=whatsapp,
             ai=ai,
             conversation=conversation,
+            group_message=group_message,
             admin=admin,
         )

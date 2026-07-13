@@ -39,6 +39,7 @@ class SupabaseRepository:
         name: str | None = None,
         preferred_language: str | None = None,
         phone_number: str | None = None,
+        registered: bool = True,
     ) -> dict[str, Any]:
         if phone_number:
             phone_number = phone_number.split("@")[0]
@@ -47,6 +48,7 @@ class SupabaseRepository:
             "name": name,
             "preferred_language": preferred_language,
             "phone_number": phone_number,
+            "registered": registered,
         }
         payload = {key: value for key, value in payload.items() if value is not None}
         response = await (
@@ -56,6 +58,110 @@ class SupabaseRepository:
         )
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
+
+    async def get_customer_by_phone_number(
+        self,
+        phone_number: str,
+    ) -> dict[str, Any] | None:
+        response = await (
+            self.client.table("customers")
+            .select("*")
+            .eq("phone_number", phone_number)
+            .maybe_single()
+            .execute()
+        )
+        return _response_data(response)
+
+    async def create_unregistered_driver_entities(
+        self,
+        *,
+        phone_number: str,
+        driver_name: str | None,
+        car_type: str | None,
+        departure: str,
+        destination: str,
+        departure_date: Any,
+        departure_time: str,
+        available_seats: int,
+        total_seats: int,
+        price: float,
+    ) -> dict[str, Any]:
+        customer = await self.upsert_customer(
+            remote_jid=phone_number,
+            name=driver_name,
+            phone_number=phone_number,
+            registered=False,
+        )
+        driver = await self.create_driver(customer_id=str(customer["id"]))
+        car = await self.create_driver_car(
+            driver_id=str(driver["id"]),
+            car_type=car_type or "غير معروف",
+            seat_count=total_seats,
+        )
+        trip = await self.create_driver_trip(
+            driver_id=str(driver["id"]),
+            car_id=str(car["id"]),
+            departure=departure,
+            destination=destination,
+            departure_date=departure_date,
+            departure_time=departure_time,
+            available_seats=available_seats,
+            total_seats=total_seats,
+            price=price,
+        )
+        return trip
+
+    async def create_unregistered_driver_trip(
+        self,
+        *,
+        driver_id: str | None,
+        phone_number: str,
+        driver_name: str | None,
+        car_type: str | None,
+        departure: str,
+        destination: str,
+        departure_date: Any,
+        departure_time: str,
+        available_seats: int,
+        total_seats: int,
+        price: float,
+    ) -> dict[str, Any]:
+        if not driver_id:
+            result = await self.create_unregistered_driver_entities(
+                phone_number=phone_number,
+                driver_name=driver_name,
+                car_type=car_type,
+                departure=departure,
+                destination=destination,
+                departure_date=departure_date,
+                departure_time=departure_time,
+                available_seats=available_seats,
+                total_seats=total_seats,
+                price=price,
+            )
+            return result
+
+        cars = await self.list_driver_cars(driver_id)
+        car = cars[0] if cars else None
+        if not car:
+            car = await self.create_driver_car(
+                driver_id=driver_id,
+                car_type=car_type or "غير معروف",
+                seat_count=total_seats,
+            )
+
+        trip = await self.create_driver_trip(
+            driver_id=driver_id,
+            car_id=str(car["id"]),
+            departure=departure,
+            destination=destination,
+            departure_date=departure_date,
+            departure_time=departure_time,
+            available_seats=available_seats,
+            total_seats=total_seats,
+            price=price,
+        )
+        return trip
 
     async def update_customer_user_mode(
         self,
@@ -269,7 +375,15 @@ class SupabaseRepository:
         if vehicle_type:
             query = query.ilike("driver_cars.car_type", f"%{vehicle_type}%")
         response = await query.limit(10).execute()
-        return _response_data(response) or []
+        data = _response_data(response) or []
+        data.sort(
+            key=lambda t: (
+                not _driver_is_registered(t),
+                str(t.get("departure_date") or ""),
+                str(t.get("departure_time") or ""),
+            )
+        )
+        return data
 
     async def search_info_chunks_by_vector(
         self,
@@ -600,3 +714,17 @@ class SupabaseRepository:
             .execute()
         )
         return response.count if hasattr(response, "count") and response.count is not None else 0
+
+
+def _driver_is_registered(trip: dict[str, Any]) -> bool:
+    drivers = trip.get("drivers")
+    if isinstance(drivers, list):
+        drivers = drivers[0] if drivers else {}
+    if not isinstance(drivers, dict):
+        return False
+    customer = drivers.get("customers")
+    if isinstance(customer, list):
+        customer = customer[0] if customer else {}
+    if not isinstance(customer, dict):
+        return False
+    return bool(customer.get("registered", False))
