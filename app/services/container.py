@@ -44,7 +44,7 @@ class ServiceContainer:
         group_message = GroupMessageService(
             repository=repository,
             embeddings=embeddings,
-            provider=ai.primary,
+            ai=ai,
             settings=settings,
         )
         admin = AdminService(repository=repository, embeddings=embeddings, settings=settings)

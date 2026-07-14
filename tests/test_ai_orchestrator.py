@@ -137,3 +137,70 @@ async def test_ai_reports_invalid_tool_arguments_to_model():
 
     assert reply == "Please share the question again."
     assert "Invalid tool arguments" in primary.calls[1]["messages"][-1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_chat_falls_back_when_primary_rate_limited():
+    primary = ScriptedProvider("groq", [RetryableProviderError("rate limited")])
+    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback reply")])
+    orchestrator = AIOrchestrator(
+        primary=primary,
+        fallback=fallback,
+        temperature=0.2,
+        max_tool_iterations=3,
+    )
+
+    response = await orchestrator.chat(
+        messages=[{"role": "user", "content": "test"}],
+    )
+
+    assert response.content == "fallback reply"
+    assert len(primary.calls) == 1
+    assert len(fallback.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_returns_primary_on_success():
+    primary = ScriptedProvider("groq", [AIProviderResponse(content="primary reply")])
+    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback")])
+    orchestrator = AIOrchestrator(
+        primary=primary,
+        fallback=fallback,
+        temperature=0.2,
+        max_tool_iterations=3,
+    )
+
+    response = await orchestrator.chat(
+        messages=[{"role": "user", "content": "test"}],
+    )
+
+    assert response.content == "primary reply"
+    assert len(primary.calls) == 1
+    assert len(fallback.calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_chat_retries_invalid_tool_call_before_fallback():
+    primary = ScriptedProvider(
+        "groq",
+        [
+            InvalidToolCallGenerationError("bad tool"),
+            AIProviderResponse(content="primary retry reply"),
+        ],
+    )
+    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback")])
+    orchestrator = AIOrchestrator(
+        primary=primary,
+        fallback=fallback,
+        temperature=0.4,
+        max_tool_iterations=3,
+    )
+
+    response = await orchestrator.chat(
+        messages=[{"role": "user", "content": "test"}],
+        temperature=0.4,
+    )
+
+    assert response.content == "primary retry reply"
+    assert [call["temperature"] for call in primary.calls] == [0.4, 0.2]
+    assert fallback.calls == []

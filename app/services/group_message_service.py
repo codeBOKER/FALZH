@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from app.ai.providers import ChatProvider
+from app.ai.orchestrator import AIOrchestrator
 from app.config import Settings
 from app.database.supabase import SupabaseRepository
 from app.models.domain import ExtractedTrip, WhatsAppInboundMessage
@@ -24,12 +24,12 @@ class GroupMessageService:
         *,
         repository: SupabaseRepository,
         embeddings: JinaEmbeddingService,
-        provider: ChatProvider,
+        ai: AIOrchestrator,
         settings: Settings,
     ) -> None:
         self.repository = repository
         self.embeddings = embeddings
-        self.provider = provider
+        self.ai = ai
         self.settings = settings
 
     async def handle_group_message(
@@ -153,7 +153,7 @@ class GroupMessageService:
         prompt = prompt_template.format(current_datetime=dt.isoformat())
 
         try:
-            response = await self.provider.chat(
+            response = await self.ai.chat(
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": text},

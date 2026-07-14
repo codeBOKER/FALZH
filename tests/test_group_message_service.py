@@ -96,7 +96,7 @@ async def test_non_trip_message_is_ignored(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -117,7 +117,7 @@ async def test_trip_ad_from_new_driver_creates_all_entities(settings: Settings) 
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -153,7 +153,7 @@ async def test_trip_ad_from_existing_customer_is_discarded(settings: Settings) -
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -180,7 +180,7 @@ async def test_existing_unregistered_driver_adds_new_trip(settings: Settings) ->
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -221,7 +221,7 @@ async def test_existing_unregistered_driver_duplicate_trip_is_skipped(settings: 
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -250,7 +250,7 @@ async def test_incomplete_fields_cause_skip(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -278,7 +278,7 @@ async def test_missing_phone_cause_skip(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -297,7 +297,7 @@ async def test_duplicate_group_message_is_deduplicated(settings: Settings) -> No
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -320,7 +320,7 @@ async def test_phone_normalization(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -341,7 +341,7 @@ async def test_invalid_json_response_cause_skip(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -361,7 +361,7 @@ async def test_markdown_fenced_json_is_parsed(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -382,7 +382,7 @@ async def test_trip_ad_with_missing_car_type_uses_unknown(settings: Settings) ->
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 
@@ -405,7 +405,7 @@ async def test_trip_ad_with_missing_name_uses_none(settings: Settings) -> None:
     service = GroupMessageService(
         repository=repo,
         embeddings=embeddings,
-        provider=provider,
+        ai=provider,
         settings=settings,
     )
 

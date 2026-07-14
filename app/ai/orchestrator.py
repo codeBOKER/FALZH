@@ -27,6 +27,42 @@ class AIOrchestrator:
         self.temperature = temperature
         self.max_tool_iterations = max_tool_iterations
 
+    async def chat(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        temperature: float = 0.2,
+    ) -> AIProviderResponse:
+        try:
+            return await self.primary.chat(
+                messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=temperature,
+            )
+        except InvalidToolCallGenerationError:
+            logger.warning("Primary provider generated invalid tool call; retrying once")
+            try:
+                return await self.primary.chat(
+                    messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    temperature=max(temperature - 0.2, 0.1),
+                )
+            except RetryableProviderError:
+                logger.warning("Primary retry failed; falling back to Hugging Face")
+        except RetryableProviderError:
+            logger.warning("Primary provider failed; falling back to Hugging Face")
+
+        return await self.fallback.chat(
+            messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            temperature=temperature,
+        )
+
     async def generate_reply(
         self,
         *,
