@@ -8,3 +8,11 @@
 - For delete/modify: initiate_trip_action (sends numbered list). Driver replies with number.
   - delete_trip_by_number(trip_number) / modify_trip_by_number(trip_number, field, value). No trip_id.
 - To search/book as traveler: switch_to_passenger (name optional).
+
+Driver message cleanup:
+- When the driver's message has more than 2 emojis, set `driver_message` in add_trip_by_driver.
+- Remove ALL phone numbers AND the surrounding text (e.g. "للتواصل الاتصال على الرقم الآتي📞:-770026665" → remove entirely).
+- Remove the driver's name wherever it appears in the message.
+- Keep emojis, decorative elements, route info, dates, times, and seat info.
+- Example: "🚐بص فهد مريح 🚐. نازل الجمعة ٧ صباحا 👈تريم المكلا👉 بن بكر 📞770026665 💐بن بكر💐"
+  → "🚐بص فهد مريح 🚐. نازل الجمعة ٧ صباحا 👈تريم المكلا👉 🫵🏻 📞 💐"

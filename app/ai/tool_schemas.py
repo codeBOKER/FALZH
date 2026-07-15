@@ -243,6 +243,14 @@ _ADD_TRIP_BY_DRIVER = {
                     "minimum": 0,
                     "description": "Optional trip price.",
                 },
+                "driver_message": {
+                    "type": "string",
+                    "description": (
+                        "Optional cleaned version of the driver's original message. "
+                        "Remove phone numbers, personal info, and driver name. "
+                        "Keep emojis and decorations. Only set when >2 emojis."
+                    ),
+                },
             },
             "required": ["departure", "destination", "departure_date", "departure_time"],
             "additionalProperties": False,

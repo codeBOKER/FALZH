@@ -587,7 +587,8 @@ class FalsaToolHandlers:
         if self.current_message:
             raw_msg = self.current_message.get("message") or ""
             if count_emojis(raw_msg) > 2:
-                driver_message = raw_msg
+                llm_message = _optional_string(arguments.get("driver_message"))
+                driver_message = llm_message or raw_msg
                 use_driver_message = True
 
         trip = await self.repository.create_driver_trip(
