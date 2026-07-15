@@ -18,6 +18,8 @@ def build_trip_embedding_record(trip: dict[str, Any], embedding_model: str) -> d
         f"Vehicle: {car.get('car_type')}. Driver: {driver.get('name')}. "
         f"Price: {trip.get('price')}. Status: {trip.get('status')}."
     )
+    if trip.get("use_driver_message") and trip.get("driver_message"):
+        chunk_text += f" Driver message: {trip['driver_message']}"
     return {
         "trip_id": trip_id,
         "chunk_text": chunk_text,

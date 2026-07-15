@@ -214,7 +214,11 @@ _ADD_TRIP_BY_DRIVER = {
                 },
                 "departure_date": {
                     "type": "string",
-                    "description": "Trip date as YYYY-MM-DD in Asia/Aden.",
+                    "description": (
+                        "Trip date as YYYY-MM-DD in Asia/Aden. "
+                        "Convert natural expressions (اليوم/بكرة/غدا/يوم الخميس etc.) "
+                        "to YYYY-MM-DD using the current date from system context."
+                    ),
                 },
                 "departure_time": {
                     "type": "string",

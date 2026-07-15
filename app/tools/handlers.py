@@ -22,6 +22,7 @@ from app.utils.departure import (
     trip_departure_date,
     trip_satisfies_departure_request,
 )
+from app.utils.emoji import count_emojis
 from app.whatsapp.client import WhatsAppClient, WhatsAppClientError
 from app.whatsapp.trip_selection import format_trip_card
 
@@ -545,23 +546,12 @@ class FalsaToolHandlers:
         if price is None and latest_trip is not None:
             price = _optional_price(latest_trip.get("price"))
 
-        missing = [
-            field
-            for field, value in [
-                ("available_seats", available_seats),
-                ("total_seats", total_seats),
-                ("price", price),
-            ]
-            if value is None
-        ]
-        if matched_car is None and not vehicle_type:
-            missing.insert(0, "vehicle_type")
-        if missing:
-            return ToolResult(
-                ok=False,
-                data={"missing_fields": missing},
-                error=f"Missing required trip fields: {', '.join(missing)}",
-            )
+        if total_seats is None:
+            total_seats = 4
+        if available_seats is None:
+            available_seats = total_seats
+        if price is None:
+            price = 0
 
         if not matched_car:
             if vehicle_type:
@@ -592,6 +582,14 @@ class FalsaToolHandlers:
         if price is None or price < 0:
             return ToolResult(ok=False, data={}, error="price must be zero or greater")
 
+        driver_message: str | None = None
+        use_driver_message = False
+        if self.current_message:
+            raw_msg = self.current_message.get("message") or ""
+            if count_emojis(raw_msg) > 2:
+                driver_message = raw_msg
+                use_driver_message = True
+
         trip = await self.repository.create_driver_trip(
             driver_id=str(driver["id"]),
             car_id=car_id,
@@ -602,6 +600,8 @@ class FalsaToolHandlers:
             available_seats=available_seats,
             total_seats=total_seats,
             price=price,
+            driver_message=driver_message,
+            use_driver_message=use_driver_message,
         )
 
         await index_trip(

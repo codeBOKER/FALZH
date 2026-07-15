@@ -2,6 +2,9 @@
 - check_driver_trips for upcoming trips.
 - add_driver_car to register vehicle (name required).
 - add_trip_by_driver(route, departure_date, departure_time).
+- Accept natural date expressions from the driver (اليوم/بكرة/غدا/يوم الخميس/بعد يومين etc.)
+  and convert them to YYYY-MM-DD using the current date in context. Never ask the driver
+  to rewrite the date in a specific format.
 - For delete/modify: initiate_trip_action (sends numbered list). Driver replies with number.
   - delete_trip_by_number(trip_number) / modify_trip_by_number(trip_number, field, value). No trip_id.
 - To search/book as traveler: switch_to_passenger (name optional).
