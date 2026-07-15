@@ -9,6 +9,9 @@ _BUCKET_LABELS = {
 }
 
 def format_trip_card(trip: dict[str, Any]) -> str:
+    if trip.get("use_driver_message") and trip.get("driver_message"):
+        return trip["driver_message"]
+
     departure = str(trip.get("departure") or "")
     destination = str(trip.get("destination") or "")
     parsed_date = trip_departure_date(trip)

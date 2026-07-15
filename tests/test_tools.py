@@ -563,6 +563,135 @@ async def test_add_trip_by_driver_indexes_new_trip():
 
 
 @pytest.mark.asyncio
+async def test_add_trip_by_driver_creates_trip_without_optional_fields():
+    repository = FakeRepository()
+    repository.drivers_by_remote_jid["967700000010"] = {
+        "id": "driver-1",
+        "name": "Ali",
+        "remoteJid": "967700000010",
+    }
+    repository.driver_cars_by_driver["driver-1"] = [
+        {"id": "car-1", "car_type": "SUV", "seat_count": 4},
+    ]
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+
+    result = await handlers.add_trip_by_driver(
+        {
+            "departure": "عدن",
+            "destination": "صنعاء",
+            "departure_date": "2026-06-10",
+            "departure_time": "noon",
+        }
+    )
+
+    assert result.ok is True
+    assert repository.created_trips[0]["car_id"] == "car-1"
+    assert repository.created_trips[0]["total_seats"] == 4
+    assert repository.created_trips[0]["available_seats"] == 4
+    assert repository.created_trips[0]["price"] == 0
+
+
+@pytest.mark.asyncio
+async def test_add_trip_by_driver_stores_driver_message_with_emojis():
+    repository = FakeRepository()
+    repository.drivers_by_remote_jid["967700000010"] = {
+        "id": "driver-1",
+        "name": "Ali",
+        "remoteJid": "967700000010",
+    }
+    repository.driver_cars_by_driver["driver-1"] = [
+        {"id": "car-1", "car_type": "SUV", "seat_count": 4},
+    ]
+    current_message = {"message": "باص من عدن الى المكلا 😊😊😊"}
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+    handlers.current_message = current_message
+
+    result = await handlers.add_trip_by_driver(
+        {
+            "departure": "عدن",
+            "destination": "المكلا",
+            "departure_date": "2026-06-10",
+            "departure_time": "morning",
+            "vehicle_type": "SUV",
+            "available_seats": 2,
+            "total_seats": 4,
+            "price": 50,
+        }
+    )
+
+    assert result.ok is True
+    created_trip = repository.created_trips[-1]
+    assert created_trip["use_driver_message"] is True
+    assert created_trip["driver_message"] == "باص من عدن الى المكلا 😊😊😊"
+
+
+@pytest.mark.asyncio
+async def test_add_trip_by_driver_no_driver_message_with_few_emojis():
+    repository = FakeRepository()
+    repository.drivers_by_remote_jid["967700000010"] = {
+        "id": "driver-1",
+        "name": "Ali",
+        "remoteJid": "967700000010",
+    }
+    repository.driver_cars_by_driver["driver-1"] = [
+        {"id": "car-1", "car_type": "SUV", "seat_count": 4},
+    ]
+    current_message = {"message": "باص من عدن الى المكلا 😊"}
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+    handlers.current_message = current_message
+
+    result = await handlers.add_trip_by_driver(
+        {
+            "departure": "عدن",
+            "destination": "المكلا",
+            "departure_date": "2026-06-10",
+            "departure_time": "morning",
+            "vehicle_type": "SUV",
+            "available_seats": 2,
+            "total_seats": 4,
+            "price": 50,
+        }
+    )
+
+    assert result.ok is True
+    created_trip = repository.created_trips[-1]
+    assert created_trip["use_driver_message"] is False
+    assert created_trip["driver_message"] is None
+
+
+@pytest.mark.asyncio
+async def test_add_trip_by_driver_no_current_message():
+    repository = FakeRepository()
+    repository.drivers_by_remote_jid["967700000010"] = {
+        "id": "driver-1",
+        "name": "Ali",
+        "remoteJid": "967700000010",
+    }
+    repository.driver_cars_by_driver["driver-1"] = [
+        {"id": "car-1", "car_type": "SUV", "seat_count": 4},
+    ]
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+
+    result = await handlers.add_trip_by_driver(
+        {
+            "departure": "عدن",
+            "destination": "المكلا",
+            "departure_date": "2026-06-10",
+            "departure_time": "morning",
+            "vehicle_type": "SUV",
+            "available_seats": 2,
+            "total_seats": 4,
+            "price": 50,
+        }
+    )
+
+    assert result.ok is True
+    created_trip = repository.created_trips[-1]
+    assert created_trip["use_driver_message"] is False
+    assert created_trip["driver_message"] is None
+
+
+@pytest.mark.asyncio
 async def test_switch_to_driver_requires_existing_driver_account():
     repository = FakeRepository()
     customer = {"id": "cust-1", "remoteJid": "967700000001"}

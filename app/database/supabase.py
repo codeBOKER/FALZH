@@ -649,6 +649,8 @@ class SupabaseRepository:
         available_seats: int,
         total_seats: int,
         price: float,
+        driver_message: str | None = None,
+        use_driver_message: bool = False,
     ) -> dict[str, Any]:
         payload = {
             "driver_id": driver_id,
@@ -661,6 +663,8 @@ class SupabaseRepository:
             "total_seats": total_seats,
             "price": price,
             "status": "active",
+            "driver_message": driver_message,
+            "use_driver_message": use_driver_message,
         }
         response = await self.client.table("driver_trips").insert(payload).execute()
         data = _response_data(response)
