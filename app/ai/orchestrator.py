@@ -130,7 +130,7 @@ class AIOrchestrator:
                 result = await _execute_tool_call(registry, tool_call)
                 logger.warning("+++++++++++++"+str(result))
                 if result.suppress_llm_reply:
-                    return ""
+                    return result.error or ""
                 working_messages.append(
                     {
                         "role": "tool",
