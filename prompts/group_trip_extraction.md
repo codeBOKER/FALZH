@@ -26,7 +26,7 @@ If this IS a trip advertisement:
   "price": "number - price per seat",
   "car_type": "string or null - vehicle type if mentioned",
   "driver_name": "string or null - driver name if mentioned",
-  "driver_phone": "string - phone number extracted from message text"
+  "driver_phone": "string - ALL phone numbers found in the message, separated by / if multiple. Extract from message text only."
 }}
 ```
 

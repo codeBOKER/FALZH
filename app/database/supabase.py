@@ -35,7 +35,7 @@ class SupabaseRepository:
     async def upsert_customer(
         self,
         *,
-        remote_jid: str,
+        remote_jid: str | None = None,
         name: str | None = None,
         preferred_language: str | None = None,
         phone_number: str | None = None,
@@ -43,6 +43,33 @@ class SupabaseRepository:
     ) -> dict[str, Any]:
         if phone_number:
             phone_number = phone_number.split("@")[0]
+
+        # Always check by phone_number first to avoid duplicates.
+        # A driver may have been saved from a group (remoteJid=None, phone_number=X),
+        # then later contacts us privately (remoteJid=Y, phone_number=X).
+        if phone_number:
+            existing = await self.get_customer_by_phone_number(phone_number)
+            if existing:
+                update_payload: dict[str, Any] = {}
+                if remote_jid and not existing.get("remoteJid"):
+                    update_payload["remoteJid"] = remote_jid
+                if name is not None:
+                    update_payload["name"] = name
+                if registered is not None:
+                    update_payload["registered"] = registered
+                if phone_number is not None:
+                    update_payload["phone_number"] = phone_number
+                if update_payload:
+                    response = await (
+                        self.client.table("customers")
+                        .update(update_payload)
+                        .eq("id", existing["id"])
+                        .execute()
+                    )
+                    data = _response_data(response)
+                    return data[0] if isinstance(data, list) else data
+                return existing
+
         payload = {
             "remoteJid": remote_jid,
             "name": name,
@@ -63,6 +90,7 @@ class SupabaseRepository:
         self,
         phone_number: str,
     ) -> dict[str, Any] | None:
+        # Try exact match first
         response = await (
             self.client.table("customers")
             .select("*")
@@ -70,7 +98,38 @@ class SupabaseRepository:
             .maybe_single()
             .execute()
         )
-        return _response_data(response)
+        result = _response_data(response)
+        if result:
+            return result
+
+        # Try each individual phone from /-separated incoming number
+        phones = [p.strip() for p in phone_number.split("/")] if "/" in phone_number else [phone_number]
+        for phone in phones:
+            response = await (
+                self.client.table("customers")
+                .select("*")
+                .eq("phone_number", phone)
+                .maybe_single()
+                .execute()
+            )
+            result = _response_data(response)
+            if result:
+                return result
+
+        # Check if any stored customer has a /-separated phone_number containing our phone
+        for phone in phones:
+            response = await (
+                self.client.table("customers")
+                .select("*")
+                .like("phone_number", f"%{phone}%")
+                .maybe_single()
+                .execute()
+            )
+            result = _response_data(response)
+            if result:
+                return result
+
+        return None
 
     async def create_unregistered_driver_entities(
         self,
@@ -87,7 +146,7 @@ class SupabaseRepository:
         price: float,
     ) -> dict[str, Any]:
         customer = await self.upsert_customer(
-            remote_jid=phone_number,
+            remote_jid=None,
             name=driver_name,
             phone_number=phone_number,
             registered=False,
@@ -539,6 +598,36 @@ class SupabaseRepository:
             self.client.table("drivers")
             .select("*, customers!inner(*)")
             .eq("customers.remoteJid", remote_jid)
+            .maybe_single()
+            .execute()
+        )
+        return _response_data(response)
+
+    async def get_driver_by_phone_number(
+        self,
+        phone_number: str,
+    ) -> dict[str, Any] | None:
+        """Look up a driver by phone_number column.
+
+        Supports multiple phones separated by '/': tries each one until a match is found.
+        """
+        if "/" in phone_number:
+            phones = phone_number.split("/")
+            for phone in phones:
+                result = await self._get_driver_by_single_phone(phone.strip())
+                if result:
+                    return result
+            return None
+        return await self._get_driver_by_single_phone(phone_number)
+
+    async def _get_driver_by_single_phone(
+        self,
+        phone: str,
+    ) -> dict[str, Any] | None:
+        response = await (
+            self.client.table("drivers")
+            .select("*, customers!inner(*)")
+            .eq("customers.phone_number", phone)
             .maybe_single()
             .execute()
         )

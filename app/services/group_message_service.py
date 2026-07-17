@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -71,7 +72,10 @@ class GroupMessageService:
             )
             return
 
-        phone = self._normalize_phone(extracted.driver_phone)
+        phone = self._normalize_phone(
+            extracted.driver_phone,
+            country_code=self.settings.default_country_code,
+        )
         if not phone:
             logger.warning(
                 "Group message %s: no valid phone number extracted",
@@ -90,7 +94,7 @@ class GroupMessageService:
                 )
                 return
 
-            driver = await self.repository.get_driver_by_remoteJid(phone)
+            driver = await self.repository.get_driver_by_phone_number(phone)
             if driver:
                 existing_trip = await self.repository.get_driver_trip_by_datetime(
                     driver_id=str(driver["id"]),
@@ -211,14 +215,29 @@ class GroupMessageService:
         ])
 
     @staticmethod
-    def _normalize_phone(phone: str | None) -> str | None:
+    def _normalize_phone(phone: str | None, country_code: str = "967") -> str | None:
         if not phone:
             return None
-        digits = "".join(c for c in phone if c.isdigit())
-        if len(digits) < 7:
+
+        # Handle multiple phone numbers separated by /, or ,
+        phones = re.split(r'[/,]', phone)
+        normalized_phones: list[str] = []
+
+        for p in phones:
+            digits = "".join(c for c in p if c.isdigit())
+            if len(digits) >= 7:
+                digits = digits.lstrip("0")
+                if digits:
+                    # Prepend country code if number doesn't already have it
+                    if not digits.startswith(country_code):
+                        digits = country_code + digits
+                    normalized_phones.append(digits)
+
+        if not normalized_phones:
             return None
-        digits = digits.lstrip("0")
-        return digits if digits else None
+
+        # Return single phone or multiple phones separated by /
+        return "/".join(normalized_phones) if len(normalized_phones) > 1 else normalized_phones[0]
 
 
 def _safe_int(value: Any) -> int | None:

@@ -47,6 +47,8 @@ class Settings(BaseSettings):
 
     admin_api_key: str = Field(min_length=1)
 
+    default_country_code: str = "967"
+
 
 @lru_cache
 def get_settings() -> Settings:
