@@ -124,6 +124,20 @@ class FakeRepository:
         phone_number: str | None = None,
         registered: bool = True,
     ) -> dict[str, Any]:
+        # Always check by phone_number first to avoid duplicates
+        if phone_number:
+            existing = await self.get_customer_by_phone_number(phone_number)
+            if existing:
+                if remote_jid and not existing.get("remoteJid"):
+                    existing["remoteJid"] = remote_jid
+                if name is not None:
+                    existing["name"] = name
+                if registered is not None:
+                    existing["registered"] = registered
+                if phone_number is not None:
+                    existing["phone_number"] = phone_number
+                return existing
+
         jid = remote_jid or phone_number
         if not jid:
             raise ValueError("remote_jid or phone_number is required")
@@ -131,7 +145,7 @@ class FakeRepository:
         if customer is None:
             customer = {
                 "id": f"cust-{len(self.customers_by_remote_jid) + 1}",
-                "remoteJid": jid,
+                "remoteJid": remote_jid,
                 "name": name,
                 "preferred_language": preferred_language,
                 "phone_number": phone_number,
@@ -178,7 +192,26 @@ class FakeRepository:
         self,
         phone_number: str,
     ) -> dict[str, Any] | None:
-        return self.customers_by_phone.get(phone_number)
+        # Try exact match first
+        result = self.customers_by_phone.get(phone_number)
+        if result:
+            return result
+
+        # Try each individual phone from /-separated incoming number
+        phones = [p.strip() for p in phone_number.split("/")] if "/" in phone_number else [phone_number]
+        for phone in phones:
+            result = self.customers_by_phone.get(phone)
+            if result:
+                return result
+
+        # Check if any stored customer has a /-separated phone_number containing our phone
+        for customer in self.customers_by_remote_jid.values():
+            stored = customer.get("phone_number") or ""
+            for phone in phones:
+                if phone in stored.split("/"):
+                    return customer
+
+        return None
 
     async def create_unregistered_driver_entities(
         self,
@@ -195,7 +228,7 @@ class FakeRepository:
         price: float,
     ) -> dict[str, Any]:
         customer = await self.upsert_customer(
-            remote_jid=phone_number,
+            remote_jid=None,
             name=driver_name,
             phone_number=phone_number,
             registered=False,
@@ -423,6 +456,36 @@ class FakeRepository:
 
     async def get_driver_by_remoteJid(self, remote_jid: str) -> dict[str, Any] | None:
         return self.drivers_by_remote_jid.get(remote_jid)
+
+    async def get_driver_by_phone_number(
+        self,
+        phone_number: str,
+    ) -> dict[str, Any] | None:
+        """Look up a driver by phone_number column.
+
+        Supports multiple phones separated by '/': tries each one until a match is found.
+        """
+        if "/" in phone_number:
+            phones = phone_number.split("/")
+            for phone in phones:
+                result = await self._get_driver_by_single_phone(phone.strip())
+                if result:
+                    return result
+            return None
+        return await self._get_driver_by_single_phone(phone_number)
+
+    async def _get_driver_by_single_phone(
+        self,
+        phone: str,
+    ) -> dict[str, Any] | None:
+        for customer in self.customers_by_remote_jid.values():
+            stored_phone = customer.get("phone_number") or ""
+            # Match exact or within /-separated list
+            if phone == stored_phone or phone in stored_phone.split("/"):
+                for driver in self.drivers_by_remote_jid.values():
+                    if driver.get("customer_id") == customer["id"]:
+                        return driver
+        return None
 
     async def create_driver(self, *, customer_id: str) -> dict[str, Any]:
         customer = next(

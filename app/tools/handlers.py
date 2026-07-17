@@ -264,8 +264,17 @@ class FalsaToolHandlers:
 
         driver_record = _first_or_dict(trip.get("drivers")) or {}
         driver_customer = driver_record.get("customers") or {}
-        driver_recipient = driver_customer.get("phone_number") or driver_customer.get("remoteJid") or driver_record.get("remoteJid")
-        driver_phone = driver_recipient.split("@")[0] if driver_recipient else None
+
+        # For unregistered drivers, phone_number may contain multiple numbers separated by /
+        driver_phone_raw = driver_customer.get("phone_number")
+        if driver_phone_raw and "/" in driver_phone_raw:
+            # Multiple phone numbers - return them separated by /
+            driver_phone = driver_phone_raw
+            driver_recipient = driver_phone_raw.split("/")[0]
+        else:
+            # Single phone number - use existing logic
+            driver_recipient = driver_phone_raw or driver_customer.get("remoteJid") or driver_record.get("remoteJid")
+            driver_phone = driver_recipient.split("@")[0] if driver_recipient else None
 
         notification_status = "not_sent"
         notification_error = None

@@ -415,3 +415,257 @@ async def test_trip_ad_with_missing_name_uses_none(settings: Settings) -> None:
     assert len(repo.created_trips) == 1
     customer = list(repo.customers_by_remote_jid.values())[0]
     assert customer["name"] is None
+
+
+@pytest.mark.asyncio
+async def test_multiple_phone_numbers_are_separated_by_slash(settings: Settings) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(
+        response_content=_trip_ad_response(driver_phone="967712345678/967876543210")
+    )
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.customers_by_remote_jid) == 1
+    customer = list(repo.customers_by_remote_jid.values())[0]
+    assert customer["phone_number"] == "967712345678/967876543210"
+
+
+@pytest.mark.asyncio
+async def test_unregistered_driver_has_null_remote_jid(settings: Settings) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(response_content=_trip_ad_response())
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.customers_by_remote_jid) == 1
+    customer = list(repo.customers_by_remote_jid.values())[0]
+    assert customer["remoteJid"] is None
+    assert customer["phone_number"] == "967712345678"
+
+
+@pytest.mark.asyncio
+async def test_phone_normalization_with_multiple_numbers(settings: Settings) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(
+        response_content=_trip_ad_response(driver_phone="+967-71-234-5678 / +967-78-765-4321")
+    )
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.customers_by_remote_jid) == 1
+    customer = list(repo.customers_by_remote_jid.values())[0]
+    assert customer["phone_number"] == "967712345678/967787654321"
+
+
+@pytest.mark.asyncio
+async def test_local_phone_number_gets_country_code_prepended(settings: Settings) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(
+        response_content=_trip_ad_response(driver_phone="712345678")
+    )
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.customers_by_remote_jid) == 1
+    customer = list(repo.customers_by_remote_jid.values())[0]
+    assert customer["phone_number"] == "967712345678"
+
+
+@pytest.mark.asyncio
+async def test_leading_zero_stripped_then_country_code_prepended(settings: Settings) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(
+        response_content=_trip_ad_response(driver_phone="0712345678")
+    )
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.customers_by_remote_jid) == 1
+    customer = list(repo.customers_by_remote_jid.values())[0]
+    assert customer["phone_number"] == "967712345678"
+
+
+@pytest.mark.asyncio
+async def test_existing_unregistered_driver_with_multiple_phones_adds_new_trip(
+    settings: Settings,
+) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(
+        response_content=_trip_ad_response(driver_phone="967712345678/967876543210")
+    )
+
+    await repo.upsert_customer(
+        remote_jid=None,
+        name="أحمد",
+        phone_number="967712345678/967876543210",
+        registered=False,
+    )
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة من صنعاء إلى عدن")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.created_trips) == 1
+    assert repo.created_trips[0]["departure"] == "صنعاء"
+
+
+@pytest.mark.asyncio
+async def test_get_driver_by_phone_number_with_multiple_phones(settings: Settings) -> None:
+    repo = FakeRepository()
+
+    customer = await repo.upsert_customer(
+        remote_jid=None,
+        name="أحمد",
+        phone_number="967712345678/967876543210",
+        registered=False,
+    )
+    await repo.create_driver(customer_id=str(customer["id"]))
+
+    driver = await repo.get_driver_by_phone_number("967712345678/967876543210")
+    assert driver is not None
+    assert driver["customers"]["phone_number"] == "967712345678/967876543210"
+
+
+@pytest.mark.asyncio
+async def test_unregistered_driver_later_dm_merges_into_same_row(settings: Settings) -> None:
+    """When a driver saved from a group (remoteJid=None) later DMs us,
+    the DM should update the existing row instead of creating a duplicate."""
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(response_content=_trip_ad_response())
+
+    # Step 1: Driver posts trip ad in group (creates unregistered customer)
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+    inbound = _make_inbound(text="رحلة من صنعاء إلى عدن")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.customers_by_remote_jid) == 1
+    existing = list(repo.customers_by_remote_jid.values())[0]
+    assert existing["remoteJid"] is None
+    assert existing["phone_number"] == "967712345678"
+    existing_id = existing["id"]
+
+    # Step 2: Same driver sends a DM (should update existing row, not create new one)
+    customer = await repo.upsert_customer(
+        remote_jid="967712345678",
+        name="أحمد",
+        phone_number="967712345678",
+        registered=True,
+    )
+
+    assert customer["id"] == existing_id
+    assert customer["remoteJid"] == "967712345678"
+    assert customer["registered"] is True
+    # Should still be only one customer row
+    assert len(repo.customers_by_remote_jid) == 1
+
+
+@pytest.mark.asyncio
+async def test_dm_with_shared_phone_merges_into_existing(settings: Settings) -> None:
+    """When a customer exists with phone_number matching a DM's phone,
+    the DM should update the existing row."""
+    repo = FakeRepository()
+
+    # Create a customer via DM first
+    customer1 = await repo.upsert_customer(
+        remote_jid="967712345678",
+        name="أحمد",
+        phone_number="967712345678",
+        registered=True,
+    )
+
+    # Another DM with same phone_number but different remoteJid (e.g. new device)
+    customer2 = await repo.upsert_customer(
+        remote_jid="967999999999",
+        name="أحمد",
+        phone_number="967712345678",
+        registered=True,
+    )
+
+    assert customer1["id"] == customer2["id"]
+    assert len(repo.customers_by_remote_jid) == 1
+
+
+@pytest.mark.asyncio
+async def test_dm_with_multi_phone_merges_into_existing(settings: Settings) -> None:
+    """When a DM's phone_number matches one of the phones in an existing
+    /-separated phone_number, it should update the existing row."""
+    repo = FakeRepository()
+
+    # Create unregistered driver with two phones
+    customer1 = await repo.upsert_customer(
+        remote_jid=None,
+        name="أحمد",
+        phone_number="967712345678/967876543210",
+        registered=False,
+    )
+
+    # DM comes in with just the first phone number
+    customer2 = await repo.upsert_customer(
+        remote_jid="967712345678",
+        name="أحمد",
+        phone_number="967712345678",
+        registered=True,
+    )
+
+    assert customer1["id"] == customer2["id"]
+    assert customer2["remoteJid"] == "967712345678"
+    assert customer2["registered"] is True
