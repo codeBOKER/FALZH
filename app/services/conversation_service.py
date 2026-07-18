@@ -75,6 +75,16 @@ class ConversationService:
         )
 
         user_mode = _resolve_user_mode(customer)
+
+        is_returning_driver = False
+        if user_mode == "new_user" and customer.get("phone_number"):
+            existing_driver = await self.repository.get_driver_by_phone_number(
+                customer["phone_number"],
+            )
+            if existing_driver:
+                is_returning_driver = True
+                user_mode = "driver"
+
         registry = self._tool_registry(
             customer,
             remoteJid=inbound.remoteJid,
@@ -185,11 +195,35 @@ class ConversationService:
                                     )
                                 return reply
 
-        reply = await self.ai.generate_reply(
-            messages=self._ai_messages(context, user_mode=user_mode),
-            tools=get_tool_schemas(user_mode),
-            registry=registry,
-        )
+        if is_returning_driver:
+            driver_name = customer.get("name") or ""
+            system_note = (
+                f"SYSTEM: This is the first message from driver \"{driver_name}\". "
+                "They were previously tracked from WhatsApp group trip posts. "
+                "Welcome them warmly by name. Tell them we have been following their trips "
+                "in the groups and we are impressed. Explain that we have registered them in "
+                "FALSA so they can now send trips directly here instead of posting in groups. "
+                "Show them how: just send the trip details (route, date, time) in chat. "
+                "Explain the benefits: passengers find their trips via AI search, they get "
+                "notified immediately when a passenger selects their trip, and registered "
+                "drivers get priority visibility in search results. Tell them we will no "
+                "longer add their trips from groups — they are in full control now. "
+                "Keep it warm, personal, and exciting. Use emojis. Write in Arabic. "
+                "8-10 lines max. Do NOT call any tools."
+            )
+            messages = self._ai_messages(context, user_mode=user_mode)
+            messages.append({"role": "system", "content": system_note})
+            reply = await self.ai.generate_reply(
+                messages=messages,
+                tools=get_tool_schemas(user_mode),
+                registry=registry,
+            )
+        else:
+            reply = await self.ai.generate_reply(
+                messages=self._ai_messages(context, user_mode=user_mode),
+                tools=get_tool_schemas(user_mode),
+                registry=registry,
+            )
 
         if not reply:
             return reply
@@ -202,6 +236,12 @@ class ConversationService:
             message=reply,
             metadata={"provider_flow": "groq_primary_hf_fallback", "user_mode": user_mode},
         )
+
+        if is_returning_driver:
+            await self.repository.update_customer_user_mode(
+                customer_id=str(customer["id"]),
+                user_mode="driver",
+            )
 
         return reply
 
