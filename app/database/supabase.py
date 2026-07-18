@@ -631,6 +631,18 @@ class SupabaseRepository:
             .maybe_single()
             .execute()
         )
+        result = _response_data(response)
+        if result:
+            return result
+
+        # Check if any stored customer has a /-separated phone_number containing our phone
+        response = await (
+            self.client.table("drivers")
+            .select("*, customers!inner(*)")
+            .like("customers.phone_number", f"%{phone}%")
+            .maybe_single()
+            .execute()
+        )
         return _response_data(response)
 
     async def create_driver(self, *, customer_id: str) -> dict[str, Any]:

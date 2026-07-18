@@ -121,6 +121,74 @@ async def test_conversation_uses_passenger_tools_when_user_mode_is_passenger(set
 
 
 @pytest.mark.asyncio
+async def test_returning_driver_gets_welcome_and_upgraded_to_driver(settings):
+    """An unregistered driver saved from group trips who later DMs the bot
+    should get a personalized welcome system note, use driver tools, and
+    have their user_mode upgraded to 'driver'."""
+    repository = FakeRepository()
+
+    # Step 1: Simulate group-trip extraction creating an unregistered driver
+    customer = await repository.upsert_customer(
+        remote_jid=None,
+        name="فهد",
+        phone_number="967712345678",
+        registered=False,
+    )
+    await repository.create_driver(customer_id=customer["id"])
+
+    assert customer["user_mode"] is None
+    assert customer["remoteJid"] is None
+
+    # Step 2: Same driver sends a DM
+    ai = FakeAI(reply="مرحباً فهد! نتابع رحلاتك...")
+    whatsapp = FakeWhatsApp()
+    service = ConversationService(
+        repository=repository,
+        embeddings=FakeEmbeddings(),
+        whatsapp=whatsapp,
+        ai=ai,
+        settings=settings,
+    )
+
+    reply = await service.handle_inbound_message(
+        WhatsAppInboundMessage(
+            message_id="wamid.returning",
+            remoteJid="967712345678",
+            text="مرحبا، أبي أضيف رحلة",
+            phone_number="967712345678",
+            profile_name="فهد",
+        )
+    )
+
+    assert reply == "مرحباً فهد! نتابع رحلاتك..."
+
+    # Should use driver tools (not new_user tools)
+    tool_names = {tool["function"]["name"] for tool in ai.calls[0]["tools"]}
+    assert tool_names == {
+        "about_falsa",
+        "check_driver_info",
+        "check_driver_trips",
+        "add_driver_car",
+        "add_trip_by_driver",
+        "initiate_trip_action",
+        "update_trip_field",
+        "switch_to_passenger",
+    }
+
+    # System note should be appended with returning-driver context
+    ai_messages = ai.calls[0]["messages"]
+    system_contents = [m["content"] for m in ai_messages if m["role"] == "system"]
+    assert any("فهد" in msg for msg in system_contents)
+    assert any("group" in msg.lower() or "مجموعات" in msg for msg in system_contents)
+
+    # user_mode should be upgraded to 'driver'
+    assert customer["user_mode"] == "driver"
+
+    # WhatsApp message was sent
+    assert len(whatsapp.sent) == 1
+
+
+@pytest.mark.asyncio
 async def test_conversation_uses_driver_tools_when_user_mode_is_driver(settings):
     repository = FakeRepository()
     customer = await repository.upsert_customer(remote_jid="967700000010", name="Ali")
