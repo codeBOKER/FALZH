@@ -1,4 +1,4 @@
 from app.ai.orchestrator import AIOrchestrator
-from app.ai.providers import GeminiChatProvider, GroqChatProvider
+from app.ai.providers import GroqChatProvider, OpenRouterChatProvider
 
-__all__ = ["AIOrchestrator", "GroqChatProvider", "GeminiChatProvider"]
+__all__ = ["AIOrchestrator", "GroqChatProvider", "OpenRouterChatProvider"]
