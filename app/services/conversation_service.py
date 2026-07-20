@@ -9,7 +9,7 @@ from app.database.supabase import SupabaseRepository
 from app.models.domain import UserMode, WhatsAppInboundMessage
 from app.services.embedding_service import JinaEmbeddingService
 from app.services.trip_indexing import unindex_trip
-from app.tools.handlers import FalsaToolHandlers, _trip_summary
+from app.tools.handlers import FalzhToolHandlers, _trip_summary
 from app.tools.registry import ToolRegistry
 from app.utils.time import now_in_timezone
 from app.whatsapp.client import WhatsAppClient
@@ -99,7 +99,7 @@ class ConversationService:
                 if orig_meta.get("type") == "trip_card":
                     trip_id = orig_meta.get("trip_id")
                     if trip_id:
-                        handlers = FalsaToolHandlers(
+                        handlers = FalzhToolHandlers(
                             repository=self.repository,
                             embeddings=self.embeddings,
                             whatsapp=self.whatsapp,
@@ -202,7 +202,7 @@ class ConversationService:
                 "They were previously tracked from WhatsApp group trip posts. "
                 "Welcome them warmly by name. Tell them we have been following their trips "
                 "in the groups and we are impressed. Explain that we have registered them in "
-                "FALSA so they can now send trips directly here instead of posting in groups. "
+                "FALZH so they can now send trips directly here instead of posting in groups. "
                 "Show them how: just send the trip details (route, date, time) in chat. "
                 "Explain the benefits: passengers find their trips via AI search, they get "
                 "notified immediately when a passenger selects their trip, and registered "
@@ -269,7 +269,7 @@ class ConversationService:
         user_mode: UserMode,
         current_message: dict[str, Any] | None = None,
     ) -> ToolRegistry:
-        handlers = FalsaToolHandlers(
+        handlers = FalzhToolHandlers(
             repository=self.repository,
             embeddings=self.embeddings,
             whatsapp=self.whatsapp,

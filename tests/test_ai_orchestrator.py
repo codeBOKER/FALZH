@@ -80,16 +80,16 @@ async def test_ai_executes_tool_call_and_returns_final_response():
                 tool_calls=[
                     ToolCall(
                         id="call-1",
-                        name="about_falsa",
-                        arguments='{"query":"FALSA","language":"en"}',
+                        name="about_falzh",
+                        arguments='{"query":"FALZH","language":"en"}',
                     )
                 ]
             ),
-            AIProviderResponse(content="FALSA helps with travel booking."),
+            AIProviderResponse(content="FALZH helps with travel booking."),
         ],
     )
     registry = ToolRegistry()
-    registry.register("about_falsa", ok_tool)
+    registry.register("about_falzh", ok_tool)
     orchestrator = AIOrchestrator(
         primary=primary,
         fallback=ScriptedProvider("hf", []),
@@ -103,7 +103,7 @@ async def test_ai_executes_tool_call_and_returns_final_response():
         registry=registry,
     )
 
-    assert reply == "FALSA helps with travel booking."
+    assert reply == "FALZH helps with travel booking."
     second_call_messages = primary.calls[1]["messages"]
     assert second_call_messages[-1]["role"] == "tool"
     assert '"ok": true' in second_call_messages[-1]["content"]
@@ -115,13 +115,13 @@ async def test_ai_reports_invalid_tool_arguments_to_model():
         "groq",
         [
             AIProviderResponse(
-                tool_calls=[ToolCall(id="call-1", name="about_falsa", arguments="{bad json")]
+                tool_calls=[ToolCall(id="call-1", name="about_falzh", arguments="{bad json")]
             ),
             AIProviderResponse(content="Please share the question again."),
         ],
     )
     registry = ToolRegistry()
-    registry.register("about_falsa", ok_tool)
+    registry.register("about_falzh", ok_tool)
     orchestrator = AIOrchestrator(
         primary=primary,
         fallback=ScriptedProvider("hf", []),

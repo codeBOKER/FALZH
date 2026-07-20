@@ -1,5 +1,5 @@
 [project]
-name = "falsa"
+name = "falzh"
 version = "0.1.0"
 description = "AI-powered WhatsApp travel service backend"
 requires-python = ">=3.12"

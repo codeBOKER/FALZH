@@ -1,6 +1,6 @@
 import pytest
 
-from app.tools.handlers import FalsaToolHandlers
+from app.tools.handlers import FalzhToolHandlers
 from tests.conftest import FakeEmbeddings, FakeRepository, FakeWhatsApp
 
 
@@ -11,13 +11,13 @@ def make_handlers(
     whatsapp: FakeWhatsApp | None = None,
     customer: dict | None = None,
     sender_phone: str = "967700000001",
-) -> FalsaToolHandlers:
+) -> FalzhToolHandlers:
     repo = repository or FakeRepository()
     if customer is None:
         cust = {"id": "cust-1", "remoteJid": sender_phone, "session_data": {}}
         repo.customers_by_remote_jid[sender_phone] = cust
         customer = cust
-    return FalsaToolHandlers(
+    return FalzhToolHandlers(
         repository=repo,
         embeddings=embeddings or FakeEmbeddings(),
         whatsapp=whatsapp or FakeWhatsApp(),
@@ -60,23 +60,23 @@ def trip(
 
 
 @pytest.mark.asyncio
-async def test_about_falsa_returns_retrieved_context():
+async def test_about_falzh_returns_retrieved_context():
     repository = FakeRepository()
     repository.info_search_results = [
         {
             "similarity": 0.91,
-            "chunk_text": "FALSA creates pending booking leads.",
-            "source": "prompts/falsa_info.md",
+            "chunk_text": "FALZH creates pending booking leads.",
+            "source": "prompts/falzh_info.md",
         }
     ]
     embeddings = FakeEmbeddings()
     handlers = make_handlers(repository=repository, embeddings=embeddings)
 
-    result = await handlers.about_falsa({"query": "What is FALSA?", "language": "en"})
+    result = await handlers.about_falzh({"query": "What is FALZH?", "language": "en"})
 
     assert result.ok is True
-    assert result.data["answer_context"][0]["text"] == "FALSA creates pending booking leads."
-    assert embeddings.query_texts == ["What is FALSA?"]
+    assert result.data["answer_context"][0]["text"] == "FALZH creates pending booking leads."
+    assert embeddings.query_texts == ["What is FALZH?"]
 
 
 @pytest.mark.asyncio

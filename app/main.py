@@ -21,6 +21,6 @@ def create_app(
         app.state.container = container or await ServiceContainer.from_settings(active_settings)
         yield
 
-    app = FastAPI(title="FALSA API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="FALZH API", version="0.1.0", lifespan=lifespan)
     app.include_router(router)
     return app

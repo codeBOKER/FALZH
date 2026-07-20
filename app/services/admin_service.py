@@ -19,7 +19,7 @@ class AdminService:
         self.repository = repository
         self.embeddings = embeddings
         self.settings = settings
-        self.info_path = info_path or Path("prompts/falsa_info.md")
+        self.info_path = info_path or Path("prompts/falzh_info.md")
 
     async def seed_info(self) -> int:
         text = self.info_path.read_text(encoding="utf-8")

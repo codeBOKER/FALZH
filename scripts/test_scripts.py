@@ -3,7 +3,7 @@ import os
 
 import httpx
 
-BASE_URL = os.getenv("FALSA_BASE_URL", "http://127.0.0.1:8000")
+BASE_URL = os.getenv("FALZH_BASE_URL", "http://127.0.0.1:8000")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 TEXT = os.getenv("JINA_TEXT", "رحلات الى مسقط اليوم")
 ACTION = os.getenv("ACTION", "embed")

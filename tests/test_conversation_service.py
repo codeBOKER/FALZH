@@ -40,13 +40,13 @@ async def test_conversation_stores_messages_uses_last_four_context_and_sends_rep
 
     ai_messages = ai.calls[0]["messages"]
     assert ai_messages[0]["role"] == "system"
-    assert "FALSA" in ai_messages[0]["content"]
+    assert "FALZH" in ai_messages[0]["content"]
     context_contents = [message["content"] for message in ai_messages[1:]]
     assert context_contents[-1] == "Aden to Mukalla tomorrow"
     assert len(context_contents) <= 9
     tool_names = {tool["function"]["name"] for tool in ai.calls[0]["tools"]}
     assert tool_names == {
-        "about_falsa",
+        "about_falzh",
         "create_driver_account",
         "switch_to_driver",
         "switch_to_passenger",
@@ -111,7 +111,7 @@ async def test_conversation_uses_passenger_tools_when_user_mode_is_passenger(set
 
     tool_names = {tool["function"]["name"] for tool in ai.calls[0]["tools"]}
     assert tool_names == {
-        "about_falsa",
+        "about_falzh",
         "search_trips",
         "select_trip",
         "create_driver_account",
@@ -165,7 +165,7 @@ async def test_returning_driver_gets_welcome_and_upgraded_to_driver(settings):
     # Should use driver tools (not new_user tools)
     tool_names = {tool["function"]["name"] for tool in ai.calls[0]["tools"]}
     assert tool_names == {
-        "about_falsa",
+        "about_falzh",
         "check_driver_info",
         "check_driver_trips",
         "add_driver_car",
@@ -214,7 +214,7 @@ async def test_conversation_uses_driver_tools_when_user_mode_is_driver(settings)
 
     tool_names = {tool["function"]["name"] for tool in ai.calls[0]["tools"]}
     assert tool_names == {
-        "about_falsa",
+        "about_falzh",
         "check_driver_info",
         "check_driver_trips",
         "add_driver_car",

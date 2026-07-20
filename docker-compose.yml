@@ -1,5 +1,5 @@
 services:
-  falsa-api:
+  falzh-api:
     build: .
     env_file:
       - .env

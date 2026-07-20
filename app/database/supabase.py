@@ -457,7 +457,7 @@ class SupabaseRepository:
         match_count: int = 5,
     ) -> list[dict[str, Any]]:
         response = await self.client.rpc(
-            "match_falsa_info",
+            "match_falzh_info",
             {
                 "query_embedding": query_embedding,
                 "match_count": match_count,
@@ -512,7 +512,7 @@ class SupabaseRepository:
     async def upsert_info_chunks(self, chunks: list[dict[str, Any]]) -> int:
         if not chunks:
             return 0
-        response = await self.client.table("falsa_info_chunks").upsert(chunks).execute()
+        response = await self.client.table("falzh_info_chunks").upsert(chunks).execute()
         data = _response_data(response)
         return len(data) if isinstance(data, list) else len(chunks)
 

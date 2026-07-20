@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Usage: ./scripts/setup_and_seed.sh
-# Seeds FALSA info and syncs active trips into Supabase vector tables.
+# Seeds FALZH info and syncs active trips into Supabase vector tables.
 # Ensure you have activated your virtualenv and filled .env before running.
 
 python scripts/seed_info.py

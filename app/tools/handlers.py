@@ -27,7 +27,7 @@ from app.whatsapp.client import WhatsAppClient, WhatsAppClientError
 from app.whatsapp.trip_selection import format_trip_card
 
 
-class FalsaToolHandlers:
+class FalzhToolHandlers:
     def __init__(
         self,
         *,
@@ -60,7 +60,7 @@ class FalsaToolHandlers:
         original_meta = original.get("metadata") or {}
         return original_meta.get("trip_id")
 
-    async def about_falsa(self, arguments: dict[str, Any]) -> ToolResult:
+    async def about_falzh(self, arguments: dict[str, Any]) -> ToolResult:
         query = str(arguments.get("query") or "").strip()
         if not query:
             return ToolResult(ok=False, data={}, error="query is required")
@@ -74,7 +74,7 @@ class FalsaToolHandlers:
             return ToolResult(
                 ok=True,
                 data={
-                    "answer": "No matching FALSA policy or FAQ content was found.",
+                    "answer": "No matching FALZH policy or FAQ content was found.",
                     "sources": [],
                 },
             )
@@ -1080,7 +1080,7 @@ def _driver_notification_text(
     notes: str | None,
 ) -> str:
     return (
-        "🔔 اهتمام جديد برحلة في فلزا\n"
+        "🔔 اهتمام جديد برحلة في فلزة\n"
         f"العميل: {customer.get('name') or 'عميل جديد'}\n"
         f"رقم العميل: {customer.get('phone_number') or 'غير متوفر'}\n"
         f"الرحلة: {trip.get('departure')} ← {trip.get('destination')}\n"

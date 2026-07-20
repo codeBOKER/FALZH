@@ -21,7 +21,7 @@ async def main() -> None:
         settings=settings,
     )
     indexed = await service.seed_info()
-    print(f"Indexed {indexed} FALSA info chunks")
+    print(f"Indexed {indexed} FALZH info chunks")
 
 
 if __name__ == "__main__":

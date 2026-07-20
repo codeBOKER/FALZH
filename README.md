@@ -1,14 +1,14 @@
-# FALSA
+# FALZH
 
 > **AI-powered travel service — on WhatsApp.**
 
 > **🚧 Work in progress — not yet published. Coming soon.**
 
 <p align="center">
-  <img src="assets/Falsa.png" alt="FALSA logo" width="100%">
+  <img src="assets/Falsa.png" alt="FALZH logo" width="100%">
 </p>
 
-FALSA lets passengers search trips and connect with drivers, and lets drivers publish, update, and manage their trips — all through a natural conversation on WhatsApp. No app to install, no complex UI to learn. Just type what you want.
+FALZH lets passengers search trips and connect with drivers, and lets drivers publish, update, and manage their trips — all through a natural conversation on WhatsApp. No app to install, no complex UI to learn. Just type what you want.
 
 ---
 
@@ -23,9 +23,9 @@ Travel booking platforms in my country are poorly adopted. Not because people do
 
 ## Solution
 
-FALSA removes all of that. The entire interface is a single chat conversation. **You say where you're going and when — FALSA handles the rest.**
+FALZH removes all of that. The entire interface is a single chat conversation. **You say where you're going and when — FALZH handles the rest.**
 
-- **Passengers** describe their trip in natural language; FALSA searches available trips, shows options, and connects them with drivers.
+- **Passengers** describe their trip in natural language; FALZH searches available trips, shows options, and connects them with drivers.
 - **Drivers** publish trips, manage schedules, and receive trip interest notifications — all by chatting.
 - No app install, no account creation flow, no confusing dashboard.
 
@@ -36,7 +36,7 @@ FALSA removes all of that. The entire interface is a single chat conversation. *
 - **Natural-language trip search** — "I want to go from Sana'a to Taiz tomorrow morning"
 - **WhatsApp-native interaction** — interactive lists, text replies, no extra UI
 - **Driver tools** — publish trips, add cars, modify/delete trips, receive trip interest notifications
-- **Passenger tools** — search trips, select trips, get driver contact, get FALSA information
+- **Passenger tools** — search trips, select trips, get driver contact, get FALZH information
 - **AI-powered orchestration** — tool-calling LLM (Groq primary, Hugging Face fallback) routes intent to the right action
 - **RAG knowledge base** — company info, pricing, policies embedded via Jina AI and retrieved on demand
 - **Trip vector search** — semantic search over driver trips for flexible departure matching
@@ -83,7 +83,7 @@ This means:
 WhatsApp User
      │
      ▼  (message)
-Baileys Bridge ──► FALSA API ──► AI Orchestrator ──► Tools
+Baileys Bridge ──► FALZH API ──► AI Orchestrator ──► Tools
 (Node.js,            (FastAPI)     (Groq / HF)          │
  separate repo)           │                              │
                           ▼                              ▼
@@ -92,7 +92,7 @@ Baileys Bridge ──► FALSA API ──► AI Orchestrator ──► Tools
                     messages, embeddings)
 ```
 
-The system is designed so the WhatsApp integration layer is swappable. The Baileys bridge (Node.js) handles the Web protocol; the FALSA Python backend talks to it the same way it talks to the Cloud API. When Cloud API onboarding is complete, swapping the bridge requires zero changes to the core logic.
+The system is designed so the WhatsApp integration layer is swappable. The Baileys bridge (Node.js) handles the Web protocol; the FALZH Python backend talks to it the same way it talks to the Cloud API. When Cloud API onboarding is complete, swapping the bridge requires zero changes to the core logic.
 
 ---
 
@@ -108,7 +108,7 @@ The system is designed so the WhatsApp integration layer is swappable. The Baile
 
 ```bash
 # 1. Clone and enter the repo
-git clone <repo-url> && cd falsa
+git clone <repo-url> && cd falzh
 
 # 2. Configure environment
 cp .env.example .env
@@ -132,7 +132,7 @@ The API is now running at `http://localhost:8000`.
 ./scripts/setup_and_seed.sh
 ```
 
-This embeds the FALSA info document (`prompts/falsa_info.md`) and all active trips into Supabase pgvector for RAG retrieval.
+This embeds the FALZH info document (`prompts/falzh_info.md`) and all active trips into Supabase pgvector for RAG retrieval.
 
 ### Run Tests
 
@@ -157,13 +157,13 @@ Mounts the current directory with hot-reload enabled.
 
 ## WhatsApp Baileys Bridge
 
-FALSA uses the official Meta Cloud API for production messages. During early stages — while waiting for commercial approval — a **Baileys-based bridge** acts as the WhatsApp gateway.
+FALZH uses the official Meta Cloud API for production messages. During early stages — while waiting for commercial approval — a **Baileys-based bridge** acts as the WhatsApp gateway.
 
 The bridge is a separate Node.js project:
 
 #### [https://github.com/codeBOKER/wh_baileys](https://github.com/codeBOKER/wh_baileys)
 
-It connects to WhatsApp via the Web protocol, relays inbound messages to the FALSA API, and forwards responses back to the user. The FALSA API treats the bridge identically to the Cloud API, so switching later requires no backend changes.
+It connects to WhatsApp via the Web protocol, relays inbound messages to the FALZH API, and forwards responses back to the user. The FALZH API treats the bridge identically to the Cloud API, so switching later requires no backend changes.
 
 ---
 
@@ -174,7 +174,7 @@ It connects to WhatsApp via the Web protocol, relays inbound messages to the FAL
 | `GET` | `/healthz` | Health check |
 | `GET` | `/webhooks/whatsapp` | Webhook verification (challenge) |
 | `POST` | `/webhooks/whatsapp` | Receive WhatsApp messages |
-| `POST` | `/admin/seed-info` | Seed FALSA RAG info |
+| `POST` | `/admin/seed-info` | Seed FALZH RAG info |
 | `POST` | `/admin/sync-trips` | Sync trip embeddings |
 | `POST` | `/admin/jina-embed` | Test embedding |
 | `POST` | `/admin/llm-tool-call` | Debug tool calling |
@@ -184,7 +184,7 @@ It connects to WhatsApp via the Web protocol, relays inbound messages to the FAL
 ## Project Structure
 
 ```
-falsa/
+falzh/
 ├── app/
 │   ├── ai/                # LLM orchestration, providers, tool schemas
 │   ├── api/               # FastAPI routes, dependency injection
@@ -219,7 +219,7 @@ Baileys (Node.js) is used only as a temporary WhatsApp bridge. My strongest area
 
 **How does the Baileys bridge differ from the Cloud API?**
 
-It doesn't — that's the point. The FALSA backend speaks the same protocol to both. The Baileys bridge simply translates the WhatsApp Web protocol into the same format the Cloud API uses. When Cloud API approval comes through, we swap the bridge with zero backend changes.
+It doesn't — that's the point. The FALZH backend speaks the same protocol to both. The Baileys bridge simply translates the WhatsApp Web protocol into the same format the Cloud API uses. When Cloud API approval comes through, we swap the bridge with zero backend changes.
 
 ---
 

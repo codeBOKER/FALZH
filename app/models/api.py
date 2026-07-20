@@ -4,7 +4,7 @@ from typing import Any
 
 class HealthResponse(BaseModel):
     status: str = "ok"
-    service: str = "FALSA"
+    service: str = "FALZH"
 
 
 class SeedInfoResponse(BaseModel):

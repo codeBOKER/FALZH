@@ -4,7 +4,7 @@ from app.ai.tool_schemas import get_all_tool_schemas, get_tool_schemas
 def test_new_user_tools_are_onboarding_only():
     names = {schema["function"]["name"] for schema in get_tool_schemas("new_user")}
     assert names == {
-        "about_falsa",
+        "about_falzh",
         "create_driver_account",
         "switch_to_driver",
         "switch_to_passenger",

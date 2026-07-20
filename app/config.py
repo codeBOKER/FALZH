@@ -15,7 +15,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "FALSA"
+    app_name: str = "FALZH"
     environment: str = "development"
     app_timezone: str = "Asia/Aden"
     log_level: str = "INFO"

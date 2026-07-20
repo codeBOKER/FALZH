@@ -2,19 +2,19 @@ from typing import Any
 
 from app.models.domain import UserMode
 
-_ABOUT_FALSA = {
+_ABOUT_FALZH = {
     "type": "function",
     "function": {
-        "name": "about_falsa",
+        "name": "about_falzh",
         "description": (
-            "Retrieve official FALSA company, FAQ, policy, or pricing information."
+            "Retrieve official FALZH company, FAQ, policy, or pricing information."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The customer's question about FALSA.",
+                    "description": "The customer's question about FALZH.",
                 },
                 "language": {
                     "type": "string",
@@ -122,7 +122,7 @@ _CREATE_DRIVER_ACCOUNT = {
     "type": "function",
     "function": {
         "name": "create_driver_account",
-        "description": "Register this WhatsApp sender as a FALSA driver. Phone from chat session.",
+        "description": "Register this WhatsApp sender as a FALZH driver. Phone from chat session.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -354,7 +354,7 @@ _SWITCH_TO_PASSENGER = {
 }
 
 _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
-    "about_falsa": _ABOUT_FALSA,
+    "about_falzh": _ABOUT_FALZH,
     "search_trips": _SEARCH_TRIPS,
     "select_trip": _SELECT_TRIP,
     "create_driver_account": _CREATE_DRIVER_ACCOUNT,
@@ -370,13 +370,13 @@ _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
 
 _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
     "new_user": [
-        "about_falsa",
+        "about_falzh",
         "create_driver_account",
         "switch_to_driver",
         "switch_to_passenger",
     ],
     "driver": [
-        "about_falsa",
+        "about_falzh",
         "check_driver_info",
         "check_driver_trips",
         "add_driver_car",
@@ -386,7 +386,7 @@ _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
         "switch_to_passenger",
     ],
     "passenger": [
-        "about_falsa",
+        "about_falzh",
         "search_trips",
         "select_trip",
         "create_driver_account",
