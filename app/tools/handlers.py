@@ -268,8 +268,8 @@ class FalzhToolHandlers:
         # For unregistered drivers, phone_number may contain multiple numbers separated by /
         driver_phone_raw = driver_customer.get("phone_number")
         if driver_phone_raw and "/" in driver_phone_raw:
-            # Multiple phone numbers - return them separated by /
-            driver_phone = driver_phone_raw
+            # Multiple phone numbers - each on its own line
+            driver_phone = driver_phone_raw.replace("/", "\n")
             driver_recipient = driver_phone_raw.split("/")[0]
         else:
             # Single phone number - use existing logic
