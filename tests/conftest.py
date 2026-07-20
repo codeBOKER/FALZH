@@ -20,8 +20,8 @@ def settings() -> Settings:
         jina_api_key="jina-secret",
         groq_api_key="groq-secret",
         groq_model="groq-tool-model",
-        hf_token="hf-secret",
-        hf_model="hf-tool-model",
+        gemini_api_key="gemini-secret",
+        gemini_model="gemini-tool-model",
         whatsapp_verify_token="verify-token",
         whatsapp_app_secret="app-secret",
         whatsapp_access_token="wa-token",
@@ -130,7 +130,7 @@ class FakeRepository:
             if existing:
                 if remote_jid and not existing.get("remoteJid"):
                     existing["remoteJid"] = remote_jid
-                if name is not None:
+                if name is not None and not existing.get("name"):
                     existing["name"] = name
                 if registered is not None:
                     existing["registered"] = registered

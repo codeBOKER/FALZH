@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from app.ai.orchestrator import AIOrchestrator
-from app.ai.providers import GroqChatProvider, HuggingFaceChatProvider
+from app.ai.providers import GeminiChatProvider, GroqChatProvider
 from app.config import Settings
 from app.database.supabase import SupabaseRepository, create_supabase_client
 from app.services.admin_service import AdminService
@@ -30,7 +30,7 @@ class ServiceContainer:
         whatsapp = WhatsAppClient(settings)
         ai = AIOrchestrator(
             primary=GroqChatProvider(settings),
-            fallback=HuggingFaceChatProvider(settings),
+            fallback=GeminiChatProvider(settings),
             temperature=settings.ai_temperature,
             max_tool_iterations=settings.ai_max_tool_iterations,
         )

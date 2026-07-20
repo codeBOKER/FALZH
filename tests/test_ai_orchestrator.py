@@ -31,7 +31,7 @@ class ScriptedProvider:
 @pytest.mark.asyncio
 async def test_ai_falls_back_when_primary_rate_limited():
     primary = ScriptedProvider("groq", [RetryableProviderError("rate limited")])
-    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback reply")])
+    fallback = ScriptedProvider("gemini", [AIProviderResponse(content="fallback reply")])
     registry = ToolRegistry()
     orchestrator = AIOrchestrator(
         primary=primary,
@@ -56,7 +56,7 @@ async def test_ai_retries_invalid_groq_tool_generation_before_fallback():
             AIProviderResponse(content="primary retry reply"),
         ],
     )
-    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback")])
+    fallback = ScriptedProvider("gemini", [AIProviderResponse(content="fallback")])
     orchestrator = AIOrchestrator(
         primary=primary,
         fallback=fallback,
@@ -142,7 +142,7 @@ async def test_ai_reports_invalid_tool_arguments_to_model():
 @pytest.mark.asyncio
 async def test_chat_falls_back_when_primary_rate_limited():
     primary = ScriptedProvider("groq", [RetryableProviderError("rate limited")])
-    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback reply")])
+    fallback = ScriptedProvider("gemini", [AIProviderResponse(content="fallback reply")])
     orchestrator = AIOrchestrator(
         primary=primary,
         fallback=fallback,
@@ -162,7 +162,7 @@ async def test_chat_falls_back_when_primary_rate_limited():
 @pytest.mark.asyncio
 async def test_chat_returns_primary_on_success():
     primary = ScriptedProvider("groq", [AIProviderResponse(content="primary reply")])
-    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback")])
+    fallback = ScriptedProvider("gemini", [AIProviderResponse(content="fallback")])
     orchestrator = AIOrchestrator(
         primary=primary,
         fallback=fallback,
@@ -188,7 +188,7 @@ async def test_chat_retries_invalid_tool_call_before_fallback():
             AIProviderResponse(content="primary retry reply"),
         ],
     )
-    fallback = ScriptedProvider("huggingface", [AIProviderResponse(content="fallback")])
+    fallback = ScriptedProvider("gemini", [AIProviderResponse(content="fallback")])
     orchestrator = AIOrchestrator(
         primary=primary,
         fallback=fallback,

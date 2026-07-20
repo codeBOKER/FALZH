@@ -53,7 +53,7 @@ class SupabaseRepository:
                 update_payload: dict[str, Any] = {}
                 if remote_jid and not existing.get("remoteJid"):
                     update_payload["remoteJid"] = remote_jid
-                if name is not None:
+                if name is not None and not existing.get("name"):
                     update_payload["name"] = name
                 if registered is not None:
                     update_payload["registered"] = registered

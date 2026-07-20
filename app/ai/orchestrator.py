@@ -52,9 +52,9 @@ class AIOrchestrator:
                     temperature=max(temperature - 0.2, 0.1),
                 )
             except RetryableProviderError:
-                logger.warning("Primary retry failed; falling back to Hugging Face")
+                logger.warning("Primary retry failed; falling back to Gemini")
         except RetryableProviderError:
-            logger.warning("Primary provider failed; falling back to Hugging Face")
+            logger.warning("Primary provider failed; falling back to Gemini")
 
         return await self.fallback.chat(
             messages,
@@ -89,9 +89,9 @@ class AIOrchestrator:
                     temperature=max(self.temperature - 0.2, 0.1),
                 )
             except RetryableProviderError:
-                logger.warning("Primary retry failed; falling back to Hugging Face")
+                logger.warning("Primary retry failed; falling back to Gemini")
         except RetryableProviderError:
-            logger.warning("Primary provider failed; falling back to Hugging Face")
+            logger.warning("Primary provider failed; falling back to Gemini")
 
         return await self._run_provider(
             self.fallback,

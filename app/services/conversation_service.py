@@ -234,7 +234,7 @@ class ConversationService:
             customer_id=str(customer["id"]),
             sender_type="assistant",
             message=reply,
-            metadata={"provider_flow": "groq_primary_hf_fallback", "user_mode": user_mode},
+            metadata={"provider_flow": "groq_primary_gemini_fallback", "user_mode": user_mode},
         )
 
         if is_returning_driver:

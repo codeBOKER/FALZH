@@ -1,3 +1,4 @@
+import json
 from typing import Any, Protocol
 
 from app.config import Settings
@@ -97,15 +98,55 @@ class GroqChatProvider(OpenAICompatibleChatProvider):
         )
 
 
-class HuggingFaceChatProvider(OpenAICompatibleChatProvider):
+class GeminiChatProvider:
+    name = "gemini"
+
     def __init__(self, settings: Settings) -> None:
-        super().__init__(
-            api_key=settings.hf_token,
-            base_url="https://router.huggingface.co/v1",
-            model=settings.hf_model,
-            timeout=settings.request_timeout_seconds,
-            name="huggingface",
-        )
+        self.api_key = settings.gemini_api_key
+        self.model = settings.gemini_model
+        self.timeout = settings.request_timeout_seconds
+        self._client: Any | None = None
+
+    @property
+    def client(self) -> Any:
+        if self._client is None:
+            from google import genai
+
+            self._client = genai.Client(api_key=self.api_key)
+        return self._client
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = "auto",
+        temperature: float = 0.2,
+    ) -> AIProviderResponse:
+        from google.genai import types
+
+        try:
+            contents = _convert_messages_to_gemini(messages)
+            config_kwargs: dict[str, Any] = {"temperature": temperature}
+            if tools:
+                config_kwargs["tools"] = _convert_tools_to_gemini(tools)
+                if tool_choice and tool_choice != "none":
+                    config_kwargs["tool_config"] = types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(
+                            mode=types.FunctionCallingConfig.Mode.AUTO
+                            if tool_choice == "auto"
+                            else types.FunctionCallingConfig.Mode.ANY,
+                        )
+                    )
+            config = types.GenerateContentConfig(**config_kwargs)
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=config,
+            )
+            return _parse_gemini_response(response)
+        except Exception as exc:  # noqa: BLE001
+            raise _provider_error_from_exception(exc, self.name) from exc
 
 
 def _normalize_openai_message(message: Any) -> AIProviderResponse:
@@ -133,6 +174,122 @@ def _normalize_openai_message(message: Any) -> AIProviderResponse:
         tool_calls=tool_calls,
         raw_message=raw_message,
     )
+
+
+def _convert_tools_to_gemini(tools: list[dict[str, Any]]) -> list[Any]:
+    from google.genai import types
+
+    declarations = []
+    for tool in tools:
+        func = tool.get("function", {})
+        params = func.get("parameters", {})
+        declarations.append(
+            types.FunctionDeclaration(
+                name=func.get("name", ""),
+                description=func.get("description", ""),
+                parameters=params if params else None,
+            )
+        )
+    return [types.Tool(function_declarations=declarations)]
+
+
+def _convert_messages_to_gemini(messages: list[dict[str, Any]]) -> list[Any]:
+    from google.genai import types
+
+    contents = []
+    pending_tool_calls: dict[str, dict[str, Any]] = {}
+
+    for msg in messages:
+        role = msg.get("role", "user")
+
+        if role == "tool":
+            tool_call_id = msg.get("tool_call_id", "")
+            if tool_call_id in pending_tool_calls:
+                tc = pending_tool_calls.pop(tool_call_id)
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_function_response(
+                                name=tc["name"],
+                                response=json.loads(msg.get("content", "{}")),
+                            )
+                        ],
+                    )
+                )
+            continue
+
+        parts: list[Any] = []
+        content = msg.get("content")
+        if content:
+            parts.append(types.Part(text=content))
+
+        tool_calls = msg.get("tool_calls") or []
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            args = func.get("arguments", "{}")
+            try:
+                parsed_args = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                parsed_args = {}
+            parts.append(
+                types.Part.from_function_call(
+                    name=func.get("name", ""),
+                    args=parsed_args,
+                )
+            )
+            pending_tool_calls[tc.get("id", "")] = {
+                "name": func.get("name", ""),
+            }
+
+        if parts:
+            gemini_role = "model" if role == "assistant" else "user"
+            contents.append(types.Content(role=gemini_role, parts=parts))
+
+    return contents
+
+
+def _parse_gemini_response(response: Any) -> AIProviderResponse:
+    text_content = ""
+    tool_calls: list[ToolCall] = []
+    raw_message: dict[str, Any] = {}
+
+    if not response.candidates:
+        return AIProviderResponse(
+            content=text_content, tool_calls=tool_calls, raw_message=raw_message
+        )
+
+    candidate = response.candidates[0]
+    parts = candidate.content.parts if candidate.content else []
+
+    for part in parts:
+        if part.text:
+            text_content += part.text
+        elif part.function_call:
+            fc = part.function_call
+            args = dict(fc.args) if fc.args else {}
+            tool_calls.append(
+                ToolCall(
+                    id=fc.name,
+                    name=fc.name,
+                    arguments=json.dumps(args, ensure_ascii=False),
+                )
+            )
+
+    raw_message["role"] = "assistant"
+    if text_content:
+        raw_message["content"] = text_content
+    if tool_calls:
+        raw_message["tool_calls"] = [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {"name": tc.name, "arguments": tc.arguments},
+            }
+            for tc in tool_calls
+        ]
+
+    return AIProviderResponse(content=text_content, tool_calls=tool_calls, raw_message=raw_message)
 
 
 def _provider_error_from_exception(exc: Exception, provider_name: str) -> ProviderError:

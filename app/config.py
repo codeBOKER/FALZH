@@ -32,8 +32,8 @@ class Settings(BaseSettings):
 
     groq_api_key: str = Field(min_length=1)
     groq_model: str = Field(min_length=1)
-    hf_token: str = Field(min_length=1)
-    hf_model: str = Field(min_length=1)
+    gemini_api_key: str = Field(min_length=1)
+    gemini_model: str = Field(min_length=1)
     ai_temperature: float = 0.2
     ai_max_tool_iterations: int = 3
     request_timeout_seconds: float = 20.0
