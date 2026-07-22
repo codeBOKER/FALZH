@@ -141,8 +141,8 @@ class SupabaseRepository:
         destination: str,
         departure_date: Any,
         departure_time: str,
-        available_seats: int,
-        total_seats: int,
+        available_seats: int | None,
+        total_seats: int | None,
         price: float,
     ) -> dict[str, Any]:
         customer = await self.upsert_customer(
@@ -181,8 +181,8 @@ class SupabaseRepository:
         destination: str,
         departure_date: Any,
         departure_time: str,
-        available_seats: int,
-        total_seats: int,
+        available_seats: int | None,
+        total_seats: int | None,
         price: float,
     ) -> dict[str, Any]:
         if not driver_id:
@@ -387,7 +387,7 @@ class SupabaseRepository:
             self.client.table("driver_trips")
             .select("*, drivers(*, customers(*)), driver_cars(*)")
             .eq("status", "active")
-            .gt("available_seats", 0)
+            .or_("available_seats.is.null,available_seats.gt.0")
         )
         query = (
             self._apply_not_departed_filter(query)
@@ -422,7 +422,7 @@ class SupabaseRepository:
             self.client.table("driver_trips")
             .select("*, drivers(*, customers(*)), driver_cars(*)")
             .eq("status", "active")
-            .gt("available_seats", 0)
+            .or_("available_seats.is.null,available_seats.gt.0")
         )
         query = self._apply_departure_request_filter(query, departure_request)
         query = query.order("departure_date").order("departure_time")
@@ -436,7 +436,7 @@ class SupabaseRepository:
                 return []
             query = query.in_("driver_id", driver_ids)
         if seats:
-            query = query.gte("available_seats", seats)
+            query = query.or_(f"available_seats.gte.{seats},available_seats.is.null")
         if vehicle_type:
             query = query.ilike("driver_cars.car_type", f"%{vehicle_type}%")
         response = await query.limit(10).execute()
@@ -747,26 +747,28 @@ class SupabaseRepository:
         destination: str,
         departure_date: date,
         departure_time: str,
-        available_seats: int,
-        total_seats: int,
+        available_seats: int | None,
+        total_seats: int | None,
         price: float,
         driver_message: str | None = None,
         use_driver_message: bool = False,
     ) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "driver_id": driver_id,
             "car_id": car_id,
             "departure": departure,
             "destination": destination,
             "departure_date": departure_date.isoformat(),
             "departure_time": departure_time,
-            "available_seats": available_seats,
-            "total_seats": total_seats,
             "price": price,
             "status": "active",
             "driver_message": driver_message,
             "use_driver_message": use_driver_message,
         }
+        if available_seats is not None:
+            payload["available_seats"] = available_seats
+        if total_seats is not None:
+            payload["total_seats"] = total_seats
         response = await self.client.table("driver_trips").insert(payload).execute()
         data = _response_data(response)
         trip = data[0] if isinstance(data, list) else data

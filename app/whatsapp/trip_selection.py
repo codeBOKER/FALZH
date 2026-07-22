@@ -24,16 +24,21 @@ def format_trip_card(trip: dict[str, Any]) -> str:
     driver_name = driver.get("name") or trip.get("driver_name") or ""
     car_type = car.get("car_type") or trip.get("car_type") or ""
 
-    available = trip.get("available_seats") or 0
-    total = trip.get("total_seats") or 0
+    available = trip.get("available_seats")
+    total = trip.get("total_seats")
     price = trip.get("price") or ""
     selection_count = trip.get("selection_count")
+
+    if available is not None and total is not None:
+        seats_line = f"المقاعد: {available} من {total} متاحة"
+    else:
+        seats_line = "المقاعد: غير متوفرة"
 
     lines = [
         "─" * 14,
         f"من: {departure} ← إلى: {destination}",
         f"التاريخ: {date_text} | الوقت: {bucket_text}",
-        f"المقاعد: {available} من {total} متاحة",
+        seats_line,
         f"السعر: {price}" if price else "",
         f"السيارة: {car_type}" if car_type else "",
         f"السائق: {driver_name}" if driver_name else "",

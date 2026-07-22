@@ -587,7 +587,7 @@ async def test_add_trip_by_driver_creates_trip_without_optional_fields():
     assert result.ok is True
     assert repository.created_trips[0]["car_id"] == "car-1"
     assert repository.created_trips[0]["total_seats"] == 4
-    assert repository.created_trips[0]["available_seats"] == 4
+    assert repository.created_trips[0]["available_seats"] is None
     assert repository.created_trips[0]["price"] == 0
 
 

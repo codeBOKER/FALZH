@@ -248,7 +248,8 @@ class FalzhToolHandlers:
             return ToolResult(ok=False, data={}, error="Trip was not found")
         if trip.get("status") != "active":
             return ToolResult(ok=False, data={}, error="Trip is not active")
-        if int(trip.get("available_seats") or 0) < requested_seats:
+        available_seats = trip.get("available_seats")
+        if available_seats is not None and int(available_seats) < requested_seats:
             return ToolResult(
                 ok=False,
                 data={"available_seats": trip.get("available_seats")},
@@ -555,10 +556,6 @@ class FalzhToolHandlers:
         if price is None and latest_trip is not None:
             price = _optional_price(latest_trip.get("price"))
 
-        if total_seats is None:
-            total_seats = 4
-        if available_seats is None:
-            available_seats = total_seats
         if price is None:
             price = 0
 
@@ -578,11 +575,11 @@ class FalzhToolHandlers:
                 error="No registered vehicle found for this driver",
             )
 
-        if total_seats is None or total_seats < 1:
+        if total_seats is not None and total_seats < 1:
             return ToolResult(ok=False, data={}, error="total_seats must be at least 1")
-        if available_seats is None or available_seats < 0:
+        if available_seats is not None and available_seats < 0:
             return ToolResult(ok=False, data={}, error="available_seats must be at least 0")
-        if available_seats > total_seats:
+        if total_seats is not None and available_seats is not None and available_seats > total_seats:
             return ToolResult(
                 ok=False,
                 data={},
@@ -966,7 +963,7 @@ def _is_trip_match(
 ) -> bool:
     if trip.get("status") != "active":
         return False
-    if int(trip.get("available_seats") or 0) < seats:
+    if trip.get("available_seats") is not None and int(trip["available_seats"]) < seats:
         return False
     if departure and departure.lower() not in str(trip.get("departure") or "").lower():
         return False
