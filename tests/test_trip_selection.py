@@ -83,3 +83,21 @@ def test_format_trip_card_driver_message_empty():
     }
     card = format_trip_card(trip)
     assert "صنعاء ← إلى" in card
+
+
+def test_format_trip_card_null_seats():
+    trip = {
+        "id": "trip-1",
+        "departure": "صنعاء",
+        "destination": "تعز",
+        "departure_date": "2026-12-01",
+        "departure_time": "noon",
+        "available_seats": None,
+        "total_seats": None,
+        "price": 5000,
+        "driver_cars": [{"car_type": "باص"}],
+        "drivers": [{"name": "أحمد"}],
+    }
+    card = format_trip_card(trip)
+    assert "غير متوفرة" in card
+    assert "المقاعد:" in card

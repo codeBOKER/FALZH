@@ -120,8 +120,8 @@ class GroupMessageService:
                 destination=extracted.destination,
                 departure_date=departure_date,
                 departure_time=departure_time,
-                available_seats=extracted.available_seats or 1,
-                total_seats=extracted.total_seats or extracted.available_seats or 1,
+                available_seats=extracted.available_seats,
+                total_seats=extracted.total_seats,
                 price=extracted.price or 0,
             )
         else:
@@ -133,8 +133,8 @@ class GroupMessageService:
                 destination=extracted.destination,
                 departure_date=departure_date,
                 departure_time=departure_time,
-                available_seats=extracted.available_seats or 1,
-                total_seats=extracted.total_seats or extracted.available_seats or 1,
+                available_seats=extracted.available_seats,
+                total_seats=extracted.total_seats,
                 price=extracted.price or 0,
             )
 

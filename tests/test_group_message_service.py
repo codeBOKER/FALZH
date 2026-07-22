@@ -669,3 +669,27 @@ async def test_dm_with_multi_phone_merges_into_existing(settings: Settings) -> N
     assert customer1["id"] == customer2["id"]
     assert customer2["remoteJid"] == "967712345678"
     assert customer2["registered"] is True
+
+
+@pytest.mark.asyncio
+async def test_trip_ad_with_null_seats_stores_none(settings: Settings) -> None:
+    repo = FakeRepository()
+    embeddings = FakeEmbeddings()
+    provider = FakeProvider(
+        response_content=_trip_ad_response(available_seats=None, total_seats=None)
+    )
+
+    service = GroupMessageService(
+        repository=repo,
+        embeddings=embeddings,
+        ai=provider,
+        settings=settings,
+    )
+
+    inbound = _make_inbound(text="رحلة من صنعاء إلى عدن")
+    await service.handle_group_message(inbound)
+
+    assert len(repo.created_trips) == 1
+    trip = repo.created_trips[0]
+    assert trip.get("available_seats") is None
+    assert trip.get("total_seats") is None

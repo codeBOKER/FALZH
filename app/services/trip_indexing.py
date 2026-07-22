@@ -11,10 +11,12 @@ def build_trip_embedding_record(trip: dict[str, Any], embedding_model: str) -> d
     trip_id = str(trip.get("id") or trip.get("trip_id"))
     departure_date = trip_departure_date(trip)
     departure_time = trip_departure_bucket(trip)
+    available = trip.get("available_seats") or "unknown"
+    total = trip.get("total_seats") or "unknown"
     chunk_text = (
         f"Trip {trip_id}: {trip.get('departure')} to {trip.get('destination')} "
         f"on {departure_date} during {departure_time}. "
-        f"Available seats: {trip.get('available_seats')} of {trip.get('total_seats')}. "
+        f"Available seats: {available} of {total}. "
         f"Vehicle: {car.get('car_type')}. Driver: {driver.get('name')}. "
         f"Price: {trip.get('price')}. Status: {trip.get('status')}."
     )

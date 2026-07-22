@@ -223,8 +223,8 @@ class FakeRepository:
         destination: str,
         departure_date: Any,
         departure_time: str,
-        available_seats: int,
-        total_seats: int,
+        available_seats: int | None,
+        total_seats: int | None,
         price: float,
     ) -> dict[str, Any]:
         customer = await self.upsert_customer(
@@ -263,8 +263,8 @@ class FakeRepository:
         destination: str,
         departure_date: Any,
         departure_time: str,
-        available_seats: int,
-        total_seats: int,
+        available_seats: int | None,
+        total_seats: int | None,
         price: float,
     ) -> dict[str, Any]:
         if not driver_id:
