@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
-from app.ai.orchestrator import AIOrchestrator
-from app.ai.providers import GroqChatProvider, OpenRouterChatProvider
+from app.ai.router import LiteLLMOrchestration
 from app.config import Settings
 from app.database.supabase import SupabaseRepository, create_supabase_client
 from app.services.admin_service import AdminService
@@ -17,7 +16,7 @@ class ServiceContainer:
     repository: SupabaseRepository
     embeddings: JinaEmbeddingService
     whatsapp: WhatsAppClient
-    ai: AIOrchestrator
+    ai: LiteLLMOrchestration
     conversation: ConversationService
     group_message: GroupMessageService
     admin: AdminService
@@ -28,12 +27,19 @@ class ServiceContainer:
         repository = SupabaseRepository(supabase_client)
         embeddings = JinaEmbeddingService(settings)
         whatsapp = WhatsAppClient(settings)
-        ai = AIOrchestrator(
-            primary=GroqChatProvider(settings),
-            fallback=OpenRouterChatProvider(settings),
-            temperature=settings.ai_temperature,
+        
+        ai = LiteLLMOrchestration(
+            groq_api_key=settings.groq_api_key,
+            groq_model=settings.groq_model,
+            hf_api_key=settings.hf_api_key,
+            hf_api_key_2=settings.hf_api_key_2,
+            hf_model=settings.hf_model,
+            openrouter_api_key=settings.openrouter_api_key,
+            openrouter_model=settings.openrouter_model,
             max_tool_iterations=settings.ai_max_tool_iterations,
+            temperature=settings.ai_temperature,
         )
+            
         conversation = ConversationService(
             repository=repository,
             embeddings=embeddings,

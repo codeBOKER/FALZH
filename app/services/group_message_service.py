@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.ai.orchestrator import AIOrchestrator
+from app.ai.router import LiteLLMOrchestration
 from app.config import Settings
 from app.database.supabase import SupabaseRepository
 from app.models.domain import ExtractedTrip, WhatsAppInboundMessage
@@ -25,7 +26,7 @@ class GroupMessageService:
         *,
         repository: SupabaseRepository,
         embeddings: JinaEmbeddingService,
-        ai: AIOrchestrator,
+        ai: AIOrchestrator | LiteLLMOrchestration,
         settings: Settings,
     ) -> None:
         self.repository = repository

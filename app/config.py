@@ -32,6 +32,9 @@ class Settings(BaseSettings):
 
     groq_api_key: str = Field(min_length=1)
     groq_model: str = Field(min_length=1)
+    hf_api_key: str = Field(min_length=1)
+    hf_api_key_2: str = Field(min_length=1)
+    hf_model: str = Field(min_length=1)
     openrouter_api_key: str = Field(min_length=1)
     openrouter_model: str = Field(min_length=1)
     ai_temperature: float = 0.2
