@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from app.ai.orchestrator import AIOrchestrator
+from app.ai.router import LiteLLMOrchestration
 from app.ai.tool_schemas import _TOOLS_BY_MODE, get_tool_schemas
 from app.config import Settings
 from app.database.supabase import SupabaseRepository
@@ -30,7 +31,7 @@ class ConversationService:
         repository: SupabaseRepository,
         embeddings: JinaEmbeddingService,
         whatsapp: WhatsAppClient,
-        ai: AIOrchestrator,
+        ai: AIOrchestrator | LiteLLMOrchestration,
         settings: Settings,
         system_prompt_path: Path | None = None,
     ) -> None:
