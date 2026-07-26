@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any
 
 from app.ai.providers import (
@@ -120,7 +121,7 @@ class AIOrchestrator:
                 temperature=temperature,
             )
             if not response.tool_calls:
-                content = (response.content or "").strip()
+                content = _normalize_brand_name((response.content or "").strip())
                 if content:
                     return content
                 raise RetryableProviderError(f"{provider.name} returned an empty response")
@@ -161,6 +162,26 @@ def _assistant_tool_message(response: AIProviderResponse) -> dict[str, Any]:
             for tool_call in response.tool_calls
         ],
     }
+
+
+def _normalize_brand_name(text: str) -> str:
+    if not text:
+        return text
+
+    replacements = {
+        "فلسا": "فلزة",
+        "فلظ": "فلزة",
+        "فلظة": "فلزة",
+        "فلز": "فلزة",
+        "فلِزة": "فلزة",
+        "فلَزة": "فلزة",
+        "فلٰزة": "فلزة",
+    }
+
+    for wrong, correct in sorted(replacements.items(), key=lambda item: -len(item[0])):
+        pattern = rf"(?<![\w\u0600-\u06FF]){re.escape(wrong)}(?![\w\u0600-\u06FF])"
+        text = re.sub(pattern, correct, text)
+    return text
 
 
 async def _execute_tool_call(registry: ToolRegistry, tool_call: ToolCall) -> ToolResult:

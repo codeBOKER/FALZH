@@ -110,6 +110,24 @@ async def test_ai_executes_tool_call_and_returns_final_response():
 
 
 @pytest.mark.asyncio
+async def test_ai_normalizes_incorrect_arabic_brand_spelling():
+    primary = ScriptedProvider(
+        "groq",
+        [AIProviderResponse(content="أهلاً بك في فلظ! أتمنى أحجز لك رحلة.")],
+    )
+    orchestrator = AIOrchestrator(
+        primary=primary,
+        fallback=ScriptedProvider("openrouter", []),
+        temperature=0.2,
+        max_tool_iterations=3,
+    )
+
+    reply = await orchestrator.generate_reply(messages=[], tools=[], registry=ToolRegistry())
+
+    assert reply == "أهلاً بك في فلزة! أتمنى أحجز لك رحلة."
+
+
+@pytest.mark.asyncio
 async def test_ai_reports_invalid_tool_arguments_to_model():
     primary = ScriptedProvider(
         "groq",
