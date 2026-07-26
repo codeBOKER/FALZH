@@ -5,7 +5,7 @@
 > **🚧 Work in progress — not yet published. Coming soon.**
 
 <p align="center">
-  <img src="assets/Falsa.png" alt="FALZH logo" width="100%">
+  <img src="assets/Falzh.png" alt="FALZH logo" width="100%">
 </p>
 
 FALZH lets passengers search trips and connect with drivers, and lets drivers publish, update, and manage their trips — all through a natural conversation on WhatsApp. No app to install, no complex UI to learn. Just type what you want.
