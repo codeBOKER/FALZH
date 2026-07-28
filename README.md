@@ -155,6 +155,27 @@ Mounts the current directory with hot-reload enabled.
 
 ---
 
+## Hugging Face Spaces
+
+This repository is prepared to run as a Hugging Face Space using the top-level `app.py` entrypoint.
+
+### What to do in Hugging Face
+
+1. Create a new Space with the Python template.
+2. Connect this repository to the Space.
+3. Configure the required secrets in the Space settings if you want the full backend features enabled.
+4. Deploy.
+
+The Space will expose the FastAPI app on port `7860` and the app will respond at:
+
+- `/` — simple service overview
+- `/healthz` — health check
+- `/docs` — interactive API documentation
+
+If the external services are not configured yet, the app still starts in a lightweight demo mode and serves the health endpoint.
+
+---
+
 ## WhatsApp Baileys Bridge
 
 FALZH uses the official Meta Cloud API for production messages. During early stages — while waiting for commercial approval — a **Baileys-based bridge** acts as the WhatsApp gateway.

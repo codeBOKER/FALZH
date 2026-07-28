@@ -16,9 +16,31 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        active_settings = settings or (container.settings if container else get_settings())
-        configure_logging(active_settings.log_level)
-        app.state.container = container or await ServiceContainer.from_settings(active_settings)
+        app.state.container = None
+        app.state.container_init_error = None
+
+        if container is not None:
+            active_settings = container.settings
+            app.state.container = container
+        else:
+            try:
+                active_settings = settings or get_settings()
+            except Exception as exc:  # pragma: no cover - defensive startup path
+                active_settings = None
+                app.state.container_init_error = str(exc)
+
+        if active_settings is not None:
+            configure_logging(active_settings.log_level)
+        else:
+            configure_logging("INFO")
+
+        if container is None and active_settings is not None:
+            try:
+                app.state.container = await ServiceContainer.from_settings(active_settings)
+            except Exception as exc:  # pragma: no cover - defensive startup path
+                app.state.container = None
+                app.state.container_init_error = str(exc)
+
         yield
 
     app = FastAPI(title="FALZH API", version="0.1.0", lifespan=lifespan)
