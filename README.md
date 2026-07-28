@@ -1,3 +1,12 @@
+---
+title: FALZH
+sdk: docker
+emoji: "\U0001F680"
+colorFrom: blue
+colorTo: blue
+pinned: true
+---
+
 # FALZH
 
 > **AI-powered travel service — on WhatsApp.**
