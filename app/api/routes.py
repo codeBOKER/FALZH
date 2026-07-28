@@ -33,8 +33,16 @@ import json
 router = APIRouter()
 
 
+@router.get("/", include_in_schema=False)
+async def root() -> dict[str, str]:
+    return {"service": "FALZH", "status": "ready", "docs": "/docs"}
+
+
 @router.get("/healthz", response_model=HealthResponse)
-async def healthz(container: Annotated[ServiceContainer, Depends(get_container)]) -> HealthResponse:
+async def healthz(request: Request) -> HealthResponse:
+    container = getattr(request.app.state, "container", None)
+    if container is None:
+        return HealthResponse(service="FALZH (demo mode)")
     return HealthResponse(service=container.settings.app_name)
 
 
