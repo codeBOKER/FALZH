@@ -31,9 +31,10 @@ class ServiceContainer:
         ai = LiteLLMOrchestration(
             groq_api_key=settings.groq_api_key,
             groq_model=settings.groq_model,
-            hf_api_key=settings.hf_api_key,
-            hf_api_key_2=settings.hf_api_key_2,
-            hf_model=settings.hf_model,
+            groq_api_key_2=settings.groq_api_key_2,
+            groq_model_2=settings.groq_model_2,
+            google_ai_api_key=settings.google_ai_api_key,
+            google_ai_model=settings.google_ai_model,
             openrouter_api_key=settings.openrouter_api_key,
             openrouter_model=settings.openrouter_model,
             max_tool_iterations=settings.ai_max_tool_iterations,

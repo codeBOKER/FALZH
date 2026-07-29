@@ -17,20 +17,22 @@ class LiteLLMOrchestration:
         self,
         groq_api_key: str,
         groq_model: str,
-        hf_api_key: str,
-        hf_api_key_2: str,
-        hf_model: str,
-        openrouter_api_key: str,
-        openrouter_model: str,
+        openrouter_api_key: str | None = None,
+        openrouter_model: str | None = None,
+        groq_api_key_2: str | None = None,
+        groq_model_2: str | None = None,
+        google_ai_api_key: str | None = None,
+        google_ai_model: str | None = None,
         max_tool_iterations: int = 3,
         temperature: float = 0.2,
     ) -> None:
         self.name = "litellm-orchestration"
         self.groq_api_key = groq_api_key
         self.groq_model = groq_model
-        self.hf_api_key = hf_api_key
-        self.hf_api_key_2 = hf_api_key_2
-        self.hf_model = hf_model
+        self.groq_api_key_2 = groq_api_key_2
+        self.groq_model_2 = groq_model_2
+        self.google_ai_api_key = google_ai_api_key
+        self.google_ai_model = google_ai_model
         self.openrouter_api_key = openrouter_api_key
         self.openrouter_model = openrouter_model
         self.max_tool_iterations = max_tool_iterations
@@ -43,7 +45,15 @@ class LiteLLMOrchestration:
 
         litellm strips the provider prefix before sending to the API,
         so 'groq/openai/gpt-oss-120b' sends 'openai/gpt-oss-120b' to Groq.
+
+        Also strips non-litellm prefixes (e.g. 'google/' from OpenRouter
+        model IDs) before applying the correct litellm provider prefix.
         """
+        for prefix in ("google",):
+            if model.startswith(f"{prefix}/"):
+                model = model[len(prefix) + 1 :]
+                break
+
         if model.startswith(f"{provider}/"):
             return model
         return f"{provider}/{model}"
@@ -61,19 +71,19 @@ class LiteLLMOrchestration:
                         },
                     },
                     {
-                        "model_name": "hf1",
+                        "model_name": "groq_2",
                         "litellm_params": {
-                            "model": self._litellm_model(self.hf_model, "huggingface"),
-                            "api_key": self.hf_api_key,
-                            "api_base": "https://router.huggingface.co/v1",
+                            "model": self._litellm_model(self.groq_model_2 or self.groq_model, "groq"),
+                            "api_key": self.groq_api_key_2 or self.groq_api_key,
+                            "api_base": "https://api.groq.com/openai/v1",
                         },
                     },
                     {
-                        "model_name": "hf2",
+                        "model_name": "google_ai_studio",
                         "litellm_params": {
-                            "model": self._litellm_model(self.hf_model, "huggingface"),
-                            "api_key": self.hf_api_key_2,
-                            "api_base": "https://router.huggingface.co/v1",
+                            "model": self._litellm_model(self.google_ai_model or self.openrouter_model, "gemini"),
+                            "api_key": self.google_ai_api_key or self.openrouter_api_key,
+                            "api_base": "https://generativelanguage.googleapis.com/v1beta",
                         },
                     },
                     {
@@ -85,7 +95,7 @@ class LiteLLMOrchestration:
                         },
                     },
                 ],
-                fallbacks=[{"groq": ["hf1", "hf2", "openrouter"]}],
+                fallbacks=[{"groq": ["groq_2", "google_ai_studio", "openrouter"]},],
                 num_retries=0,
                 retry_policy={
                     "TimeoutErrorRetries": 0,
