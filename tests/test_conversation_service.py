@@ -180,6 +180,8 @@ async def test_returning_driver_gets_welcome_and_upgraded_to_driver(settings):
     system_contents = [m["content"] for m in ai_messages if m["role"] == "system"]
     assert any("فهد" in msg for msg in system_contents)
     assert any("group" in msg.lower() or "مجموعات" in msg for msg in system_contents)
+    assert any("own preferred style/format" in msg for msg in system_contents)
+    assert any("phone numbers will be removed" in msg for msg in system_contents)
 
     # user_mode should be upgraded to 'driver'
     assert customer["user_mode"] == "driver"
@@ -223,6 +225,5 @@ async def test_conversation_uses_driver_tools_when_user_mode_is_driver(settings)
         "update_trip_field",
         "switch_to_passenger",
     }
-
 
 

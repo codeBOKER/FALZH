@@ -76,6 +76,9 @@ class FalzhToolHandlers:
                 data={
                     "answer": "No matching FALZH policy or FAQ content was found.",
                     "sources": [],
+                    "reply_instruction": (
+                        "Apologize briefly. Do not guess or invent an answer."
+                    ),
                 },
             )
 
@@ -91,6 +94,10 @@ class FalzhToolHandlers:
                     }
                     for match in matches
                 ],
+                "reply_instruction": (
+                    "Answer only from this context. If it does not clearly answer the user's "
+                    "question, apologize briefly and say there is no confirmed information."
+                ),
             },
         )
 
@@ -228,6 +235,7 @@ class FalzhToolHandlers:
                 "alternate_alert": alternate_alert,
                 "sent_as_messages": False,
                 "note": "No active matching trips were found.",
+                "reply_instruction": _no_trip_reply_instruction(departure_request),
             },
         )
 
@@ -338,6 +346,13 @@ class FalzhToolHandlers:
                 "name": self.customer.get("name"),
                 "remoteJid": self.customer.get("remoteJid"),
                 "message": "Driver account created successfully.",
+                "reply_instruction": (
+                    "Tell the driver in Arabic that they can publish each trip in their own "
+                    "format/style and FALZH will extract the trip details automatically. Also "
+                    "tell them personal data such as phone numbers will be removed from trip "
+                    "ads/cards and shared with passengers only after a passenger selects the "
+                    "trip and wants to contact them."
+                ),
             },
         )
 
@@ -592,8 +607,8 @@ class FalzhToolHandlers:
         use_driver_message = False
         if self.current_message:
             raw_msg = self.current_message.get("message") or ""
-            if count_emojis(raw_msg) > 2:
-                llm_message = _optional_string(arguments.get("driver_message"))
+            llm_message = _optional_string(arguments.get("driver_message"))
+            if llm_message or count_emojis(raw_msg) > 2:
                 driver_message = llm_message or raw_msg
                 use_driver_message = True
 
@@ -1061,6 +1076,24 @@ def _alternate_time_alert(trips: list[dict[str, Any]]) -> str | None:
         "The closest available trip is more than 60 minutes away from the requested time. "
         "Mention that it is an alternate time before listing the options."
     )
+
+
+def _no_trip_reply_instruction(departure_request: Any) -> str:
+    instruction = (
+        "Tell the passenger briefly that no active matching trip is currently available. "
+        "Do not promise to notify them when a future matching trip is added."
+    )
+    if departure_request.departure_date or departure_request.departure_time:
+        instruction += (
+            " Do not call search_trips again with a narrower/specific time for the same "
+            "route unless the passenger provides new route/date information."
+        )
+    else:
+        instruction += (
+            " This was already a general search for the provided trip details; do not call "
+            "search_trips again only to add a specific time for the same trip."
+        )
+    return instruction
 
 
 def _trip_search_note(alternate_alert: str | None) -> str:

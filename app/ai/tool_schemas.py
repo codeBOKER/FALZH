@@ -7,7 +7,8 @@ _ABOUT_FALZH = {
     "function": {
         "name": "about_falzh",
         "description": (
-            "Retrieve official FALZH company, FAQ, policy, or pricing information."
+            "Retrieve official FALZH company, FAQ, policy, pricing, or feature information. "
+            "Use before answering any FALZH capability/request you are unsure about."
         ),
         "parameters": {
             "type": "object",
@@ -246,9 +247,10 @@ _ADD_TRIP_BY_DRIVER = {
                 "driver_message": {
                     "type": "string",
                     "description": (
-                        "Optional cleaned version of the driver's original message. "
-                        "Remove phone numbers, personal info, and driver name. "
-                        "Keep emojis and decorations. Only set when >2 emojis."
+                        "Optional cleaned version of the driver's original trip ad when the "
+                        "driver wrote it in a style likely meant for passengers. Remove phone "
+                        "numbers, personal info, and driver name. Keep route info, dates, "
+                        "times, emojis, and decorations."
                     ),
                 },
             },

@@ -80,6 +80,17 @@ async def test_about_falzh_returns_retrieved_context():
 
 
 @pytest.mark.asyncio
+async def test_about_falzh_no_match_instructs_apology():
+    handlers = make_handlers()
+
+    result = await handlers.about_falzh({"query": "Do you support rewards?", "language": "en"})
+
+    assert result.ok is True
+    assert result.data["sources"] == []
+    assert "Do not guess" in result.data["reply_instruction"]
+
+
+@pytest.mark.asyncio
 async def test_search_trips_uses_supabase_vector_matches_and_validates_business_rules():
     repository = FakeRepository()
     repository.trip_vector_search_results = [
@@ -136,6 +147,26 @@ async def test_search_trips_reports_no_matches():
     assert result.ok is True
     assert result.data["matches"] == []
     assert "No active" in result.data["note"]
+    assert "Do not promise to notify" in result.data["reply_instruction"]
+    assert "already a general search" in result.data["reply_instruction"]
+
+
+@pytest.mark.asyncio
+async def test_search_trips_no_timed_match_instructs_no_narrow_retry():
+    handlers = make_handlers()
+
+    result = await handlers.search_trips(
+        {
+            "departure": "Aden",
+            "destination": "Sana'a",
+            "travel_date": "2026-12-01",
+            "travel_time": "morning",
+        }
+    )
+
+    assert result.ok is True
+    assert result.data["matches"] == []
+    assert "narrower/specific time" in result.data["reply_instruction"]
 
 
 @pytest.mark.asyncio
@@ -311,6 +342,8 @@ async def test_create_driver_account_uses_sender_phone():
     assert result.ok is True
     assert repository.created_drivers[0]["customers"]["remoteJid"] == "967700000010"
     assert result.data["driver_id"] == "driver-1"
+    assert "own format/style" in result.data["reply_instruction"]
+    assert "phone numbers" in result.data["reply_instruction"]
 
 
 @pytest.mark.asyncio
@@ -645,6 +678,42 @@ async def test_add_trip_by_driver_uses_llm_cleaned_message():
     result = await handlers.add_trip_by_driver(
         {
             "departure": "تريم",
+            "destination": "المكلا",
+            "departure_date": "2026-06-10",
+            "departure_time": "morning",
+            "vehicle_type": "SUV",
+            "available_seats": 2,
+            "total_seats": 4,
+            "price": 50,
+            "driver_message": cleaned_msg,
+        }
+    )
+
+    assert result.ok is True
+    created_trip = repository.created_trips[-1]
+    assert created_trip["use_driver_message"] is True
+    assert created_trip["driver_message"] == cleaned_msg
+
+
+@pytest.mark.asyncio
+async def test_add_trip_by_driver_uses_cleaned_message_without_many_emojis():
+    repository = FakeRepository()
+    repository.drivers_by_remote_jid["967700000010"] = {
+        "id": "driver-1",
+        "name": "Ali",
+        "remoteJid": "967700000010",
+    }
+    repository.driver_cars_by_driver["driver-1"] = [
+        {"id": "car-1", "car_type": "SUV", "seat_count": 4},
+    ]
+    raw_msg = "رحلة يومية من عدن إلى المكلا للتواصل 770026665"
+    cleaned_msg = "رحلة يومية من عدن إلى المكلا"
+    handlers = make_handlers(repository=repository, sender_phone="967700000010")
+    handlers.current_message = {"message": raw_msg}
+
+    result = await handlers.add_trip_by_driver(
+        {
+            "departure": "عدن",
             "destination": "المكلا",
             "departure_date": "2026-06-10",
             "departure_time": "morning",
