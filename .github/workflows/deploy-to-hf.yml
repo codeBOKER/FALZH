@@ -1,0 +1,59 @@
+
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      HF_SPACE_ID: codeBOKER/whFalsa
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Clone Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git clone \
+            "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID}" \
+            ../hf-space
+
+      - name: Sync project files
+        run: |
+          rsync -av --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='/README.md' \
+            --exclude='/.gitignore' \
+            --exclude='/Dockerfile' \
+            ./ ../hf-space/
+
+      - name: Commit and deploy changes
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd ../hf-space
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git add -A
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Deploy from GitHub main"
+            git push origin HEAD:main
+          else
+            echo "No changes to deploy."
+          fi
+
