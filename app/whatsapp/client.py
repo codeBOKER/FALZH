@@ -1,6 +1,7 @@
 import httpx
 
 from app.config import Settings
+from app.utils.whatsapp_format import to_whatsapp_markup
 
 
 class WhatsAppClientError(RuntimeError):
@@ -26,7 +27,7 @@ class WhatsAppClient:
             "recipient_type": "individual",
             "to": remoteJid,
             "type": "text",
-            "text": {"preview_url": False, "body": text},
+            "text": {"preview_url": False, "body": to_whatsapp_markup(text)},
         }
         headers = {
             "Authorization": f"Bearer {self._settings.whatsapp_access_token}",
