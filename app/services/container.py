@@ -8,6 +8,7 @@ from app.services.conversation_service import ConversationService
 from app.services.embedding_service import JinaEmbeddingService
 from app.services.group_message_service import GroupMessageService
 from app.whatsapp.client import WhatsAppClient
+from app.whatsapp.outbox import WhatsAppOutbox
 
 
 @dataclass(slots=True)
@@ -15,7 +16,7 @@ class ServiceContainer:
     settings: Settings
     repository: SupabaseRepository
     embeddings: JinaEmbeddingService
-    whatsapp: WhatsAppClient
+    whatsapp: WhatsAppOutbox
     ai: LiteLLMOrchestration
     conversation: ConversationService
     group_message: GroupMessageService
@@ -26,7 +27,11 @@ class ServiceContainer:
         supabase_client = await create_supabase_client(settings)
         repository = SupabaseRepository(supabase_client)
         embeddings = JinaEmbeddingService(settings)
-        whatsapp = WhatsAppClient(settings)
+        whatsapp = WhatsAppOutbox(
+            repository=repository,
+            client=WhatsAppClient(settings),
+            retry_interval_seconds=settings.whatsapp_retry_interval_seconds,
+        )
         
         ai = LiteLLMOrchestration(
             groq_api_key=settings.groq_api_key,

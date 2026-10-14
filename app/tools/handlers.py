@@ -23,7 +23,7 @@ from app.utils.departure import (
     trip_satisfies_departure_request,
 )
 from app.utils.emoji import count_emojis
-from app.whatsapp.client import WhatsAppClient, WhatsAppClientError
+from app.whatsapp.client import WhatsAppClientError, WhatsAppSender
 from app.whatsapp.trip_selection import format_trip_card
 
 
@@ -33,7 +33,7 @@ class FalzhToolHandlers:
         *,
         repository: SupabaseRepository,
         embeddings: JinaEmbeddingService,
-        whatsapp: WhatsAppClient,
+        whatsapp: WhatsAppSender,
         customer: dict[str, Any],
         remoteJid: str,
         embedding_model: str,
@@ -203,6 +203,17 @@ class FalzhToolHandlers:
                             whatsapp_message_id=wam_id,
                             metadata={"trip_id": trip_id, "type": "trip_card"},
                         )
+                    elif resp.get("outbox_id"):
+                        await self.repository.create_message(
+                            customer_id=str(self.customer["id"]),
+                            sender_type="assistant",
+                            message=card,
+                            metadata={
+                                "trip_id": trip_id,
+                                "type": "trip_card",
+                                "outbox_id": resp["outbox_id"],
+                            },
+                        )
                 except WhatsAppClientError:
                     logger.warning("Failed to send trip card for trip %s", trip_id)
 
@@ -292,7 +303,7 @@ class FalzhToolHandlers:
 
         if is_registered and driver_recipient:
             try:
-                await self.whatsapp.send_text(
+                receipt = await self.whatsapp.send_text(
                     driver_recipient,
                     _driver_notification_text(
                         customer=self.customer,
@@ -301,7 +312,13 @@ class FalzhToolHandlers:
                         notes=notes,
                     ),
                 )
-                notification_status = "sent"
+                if receipt.get("queued") or receipt.get("failed"):
+                    notification_status = "failed"
+                    notification_error = (
+                        receipt.get("error") or "Notification queued for retry"
+                    )
+                else:
+                    notification_status = "sent"
             except Exception as exc:  # noqa: BLE001
                 notification_status = "failed"
                 notification_error = str(exc)
@@ -432,6 +449,17 @@ class FalzhToolHandlers:
                         message=card,
                         whatsapp_message_id=wam_id,
                         metadata={"trip_id": trip_id, "type": "driver_trip_card"},
+                    )
+                elif resp.get("outbox_id"):
+                    await self.repository.create_message(
+                        customer_id=str(self.customer["id"]),
+                        sender_type="assistant",
+                        message=card,
+                        metadata={
+                            "trip_id": trip_id,
+                            "type": "driver_trip_card",
+                            "outbox_id": resp["outbox_id"],
+                        },
                     )
             except WhatsAppClientError:
                 logger.warning("Failed to send trip card for trip %s", trip_id)
@@ -706,6 +734,18 @@ class FalzhToolHandlers:
                         message=card,
                         whatsapp_message_id=wam_id,
                         metadata={"trip_id": trip_id, "type": "driver_trip_card", "action": action_type},
+                    )
+                elif resp.get("outbox_id"):
+                    await self.repository.create_message(
+                        customer_id=str(self.customer["id"]),
+                        sender_type="assistant",
+                        message=card,
+                        metadata={
+                            "trip_id": trip_id,
+                            "type": "driver_trip_card",
+                            "action": action_type,
+                            "outbox_id": resp["outbox_id"],
+                        },
                     )
             except WhatsAppClientError:
                 logger.warning("Failed to send trip card for trip %s", trip_id)

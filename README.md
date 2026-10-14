@@ -35,6 +35,7 @@ FALZH removes all of that. The entire interface is a single chat conversation. *
 
 - **Natural-language trip search** — "I want to go from Sana'a to Taiz tomorrow morning"
 - **WhatsApp-native interaction** — interactive lists, text replies, no extra UI
+- **Reliable WhatsApp delivery** — outbound messages are stored in Supabase and retried oldest-first after temporary API failures
 - **Driver tools** — publish trips, add cars, modify/delete trips, receive trip interest notifications
 - **Passenger tools** — search trips, select trips, get driver contact, get FALZH information
 - **AI-powered orchestration** — tool-calling LLM (Groq primary, Hugging Face fallback) routes intent to the right action
@@ -119,6 +120,9 @@ pip install -r requirements.txt
 
 # 4. Apply database migrations
 # Run the SQL files in supabase/migrations/ in order via Supabase SQL editor or psql
+
+# WhatsApp messages retry every 60 seconds by default. Set
+# WHATSAPP_RETRY_INTERVAL_SECONDS in .env to change the interval.
 
 # 5. Start the server
 uvicorn main:app --reload

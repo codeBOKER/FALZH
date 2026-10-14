@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     whatsapp_app_secret: str = Field(min_length=1)
     whatsapp_access_token: str = Field(min_length=1)
     whatsapp_phone_number_id: str = Field(min_length=1)
+    whatsapp_retry_interval_seconds: int = Field(default=6, gt=0)
 
     admin_api_key: str = Field(min_length=1)
 
