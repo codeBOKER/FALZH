@@ -1,5 +1,5 @@
 import logging
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 from typing import Any
 
 from app.config import Settings
@@ -31,6 +31,158 @@ def _response_data(response: Any) -> Any:
 class SupabaseRepository:
     def __init__(self, client: Any) -> None:
         self.client = client
+
+    async def enqueue_whatsapp_message(
+        self,
+        *,
+        recipient: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        now = datetime.now(UTC).isoformat()
+        response = await (
+            self.client.table("whatsapp_outbox")
+            .insert(
+                {
+                    "recipient": recipient,
+                    "payload": payload,
+                    "status": "pending",
+                    "next_attempt_at": now,
+                }
+            )
+            .select("*")
+            .execute()
+        )
+        data = _response_data(response)
+        return data[0] if isinstance(data, list) else data
+
+    async def get_oldest_active_whatsapp_message(self) -> dict[str, Any] | None:
+        response = await (
+            self.client.table("whatsapp_outbox")
+            .select("*")
+            .in_("status", ["pending", "sending"])
+            .order("created_at")
+            .order("id")
+            .limit(1)
+            .execute()
+        )
+        data = _response_data(response) or []
+        return data[0] if data else None
+
+    async def claim_whatsapp_message(
+        self,
+        message_id: str,
+        *,
+        ignore_retry_time: bool = False,
+    ) -> dict[str, Any] | None:
+        attempts_response = await (
+            self.client.table("whatsapp_outbox")
+            .select("attempts")
+            .eq("id", message_id)
+            .eq("status", "pending")
+            .maybe_single()
+            .execute()
+        )
+        row = _response_data(attempts_response)
+        if not row:
+            return None
+
+        now = datetime.now(UTC).isoformat()
+        update = (
+            self.client.table("whatsapp_outbox")
+            .update(
+                {
+                    "status": "sending",
+                    "attempts": int(row.get("attempts") or 0) + 1,
+                    "last_attempt_at": now,
+                    "locked_at": now,
+                    "last_error": None,
+                }
+            )
+            .eq("id", message_id)
+            .eq("status", "pending")
+        )
+        if not ignore_retry_time:
+            update = update.lte("next_attempt_at", now)
+        response = await update.select("*").execute()
+        data = _response_data(response) or []
+        return data[0] if data else None
+
+    async def recover_stale_whatsapp_messages(
+        self,
+        *,
+        stale_before: datetime,
+    ) -> None:
+        now = datetime.now(UTC).isoformat()
+        await (
+            self.client.table("whatsapp_outbox")
+            .update(
+                {
+                    "status": "pending",
+                    "next_attempt_at": now,
+                    "locked_at": None,
+                    "last_error": "Recovered after an interrupted send attempt",
+                }
+            )
+            .eq("status", "sending")
+            .lt("locked_at", stale_before.isoformat())
+            .execute()
+        )
+
+    async def mark_whatsapp_message_sent(
+        self,
+        message_id: str,
+        *,
+        provider_response: dict[str, Any],
+    ) -> None:
+        await (
+            self.client.table("whatsapp_outbox")
+            .update(
+                {
+                    "status": "sent",
+                    "sent_at": datetime.now(UTC).isoformat(),
+                    "locked_at": None,
+                    "last_error": None,
+                    "provider_response": provider_response,
+                }
+            )
+            .eq("id", message_id)
+            .execute()
+        )
+        provider_messages = provider_response.get("messages") or []
+        provider_message_id = (
+            provider_messages[0].get("id")
+            if provider_messages and isinstance(provider_messages[0], dict)
+            else None
+        )
+        if provider_message_id:
+            await (
+                self.client.table("messages")
+                .update({"whatsapp_message_id": provider_message_id})
+                .eq("metadata->>outbox_id", message_id)
+                .execute()
+            )
+
+    async def fail_whatsapp_message(
+        self,
+        message_id: str,
+        *,
+        error: str,
+        retryable: bool,
+        retry_at: datetime,
+    ) -> None:
+        await (
+            self.client.table("whatsapp_outbox")
+            .update(
+                {
+                    "status": "pending" if retryable else "failed",
+                    "next_attempt_at": retry_at.isoformat(),
+                    "locked_at": None,
+                    "last_error": error[:4000],
+                }
+            )
+            .eq("id", message_id)
+            .execute()
+        )
 
     async def upsert_customer(
         self,

@@ -13,7 +13,7 @@ from app.services.trip_indexing import unindex_trip
 from app.tools.handlers import FalzhToolHandlers, _trip_summary
 from app.tools.registry import ToolRegistry
 from app.utils.time import now_in_timezone
-from app.whatsapp.client import WhatsAppClient
+from app.whatsapp.client import WhatsAppSender
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class ConversationService:
         *,
         repository: SupabaseRepository,
         embeddings: JinaEmbeddingService,
-        whatsapp: WhatsAppClient,
+        whatsapp: WhatsAppSender,
         ai: AIOrchestrator | LiteLLMOrchestration,
         settings: Settings,
         system_prompt_path: Path | None = None,

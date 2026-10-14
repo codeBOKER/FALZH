@@ -350,6 +350,28 @@ CREATE TABLE public.messages (
 
 
 --
+-- Name: whatsapp_outbox; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.whatsapp_outbox (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    recipient text NOT NULL,
+    payload jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    next_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_attempt_at timestamp with time zone,
+    locked_at timestamp with time zone,
+    sent_at timestamp with time zone,
+    last_error text,
+    provider_response jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT whatsapp_outbox_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text]))),
+    CONSTRAINT whatsapp_outbox_attempts_check CHECK ((attempts >= 0))
+);
+
+
+--
 -- Name: trip_selections; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -575,6 +597,13 @@ CREATE INDEX idx_messages_customer_created_at ON public.messages USING btree (cu
 
 
 --
+-- Name: idx_whatsapp_outbox_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_outbox_queue ON public.whatsapp_outbox USING btree (created_at, id) WHERE (status = ANY (ARRAY['pending'::text, 'sending'::text]));
+
+
+--
 -- Name: idx_trip_selections_customer; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -763,6 +792,12 @@ ALTER TABLE public.falzh_info_chunks ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: whatsapp_outbox; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.whatsapp_outbox ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: trip_selections; Type: ROW SECURITY; Schema: public; Owner: -

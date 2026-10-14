@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -16,6 +17,7 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        retry_worker: asyncio.Task[None] | None = None
         app.state.container = None
         app.state.container_init_error = None
 
@@ -41,7 +43,20 @@ def create_app(
                 app.state.container = None
                 app.state.container_init_error = str(exc)
 
-        yield
+        whatsapp = getattr(app.state.container, "whatsapp", None)
+        run_retry_worker = getattr(whatsapp, "run_retry_worker", None)
+        if callable(run_retry_worker):
+            retry_worker = asyncio.create_task(run_retry_worker())
+
+        try:
+            yield
+        finally:
+            if retry_worker is not None:
+                retry_worker.cancel()
+                try:
+                    await retry_worker
+                except asyncio.CancelledError:
+                    pass
 
     app = FastAPI(title="FALZH API", version="0.1.0", lifespan=lifespan)
     app.include_router(router)
