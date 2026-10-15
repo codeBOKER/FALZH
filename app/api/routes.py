@@ -1,9 +1,12 @@
+import json
+import secrets
 from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -28,7 +31,6 @@ from app.services.container import ServiceContainer
 from app.whatsapp.parser import parse_inbound_messages
 from app.whatsapp.security import verify_meta_signature, verify_webhook_challenge
 from app.ai.tool_schemas import get_all_tool_schemas
-import json
 
 router = APIRouter()
 
@@ -86,6 +88,31 @@ async def receive_whatsapp_webhook(
             )
 
     return WebhookAcceptedResponse(messages=len(messages))
+
+
+@router.post("/internal/whatsapp/connected", status_code=status.HTTP_202_ACCEPTED)
+async def whatsapp_bridge_connected(
+    background_tasks: BackgroundTasks,
+    container: Annotated[ServiceContainer, Depends(get_container)],
+    bridge_secret: Annotated[
+        str | None,
+        Header(alias="X-WhatsApp-Bridge-Secret"),
+    ] = None,
+) -> dict[str, str]:
+    expected_secret = container.settings.whatsapp_bridge_secret
+    if expected_secret is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WhatsApp bridge notification is not configured",
+        )
+    if not bridge_secret or not secrets.compare_digest(bridge_secret, expected_secret):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid WhatsApp bridge secret",
+        )
+
+    background_tasks.add_task(container.whatsapp.on_connection_restored)
+    return {"status": "accepted", "message": "Outbox delivery started"}
 
 
 @router.post(

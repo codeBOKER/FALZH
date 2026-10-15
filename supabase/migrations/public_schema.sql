@@ -365,8 +365,10 @@ CREATE TABLE public.whatsapp_outbox (
     sent_at timestamp with time zone,
     last_error text,
     provider_response jsonb,
+    discarded_at timestamp with time zone,
+    discard_reason text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT whatsapp_outbox_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text]))),
+    CONSTRAINT whatsapp_outbox_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text, 'discarded'::text]))),
     CONSTRAINT whatsapp_outbox_attempts_check CHECK ((attempts >= 0))
 );
 

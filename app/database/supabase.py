@@ -55,18 +55,60 @@ class SupabaseRepository:
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
 
-    async def get_oldest_active_whatsapp_message(self) -> dict[str, Any] | None:
-        response = await (
+    async def get_pending_whatsapp_message(
+        self,
+        *,
+        newer_than: datetime | None,
+        older_than: datetime | None,
+        newest_first: bool,
+    ) -> dict[str, Any] | None:
+        query = (
             self.client.table("whatsapp_outbox")
             .select("*")
-            .in_("status", ["pending", "sending"])
-            .order("created_at")
-            .order("id")
+            .eq("status", "pending")
+        )
+        if newer_than:
+            query = query.gte("created_at", newer_than.isoformat())
+        if older_than:
+            query = query.lt("created_at", older_than.isoformat())
+        response = await (
+            query.order("created_at", desc=newest_first)
+            .order("id", desc=newest_first)
             .limit(1)
             .execute()
         )
         data = _response_data(response) or []
         return data[0] if data else None
+
+    async def has_sending_whatsapp_message(self) -> bool:
+        response = await (
+            self.client.table("whatsapp_outbox")
+            .select("id")
+            .eq("status", "sending")
+            .limit(1)
+            .execute()
+        )
+        return bool(_response_data(response))
+
+    async def discard_expired_whatsapp_messages(self, *, before: datetime) -> int:
+        now = datetime.now(UTC).isoformat()
+        response = await (
+            self.client.table("whatsapp_outbox")
+            .update(
+                {
+                    "status": "discarded",
+                    "discarded_at": now,
+                    "discard_reason": "Message exceeded the configured maximum age",
+                    "locked_at": None,
+                }
+            )
+            .eq("status", "pending")
+            .lt("created_at", before.isoformat())
+            .select("id")
+            .execute()
+        )
+        data = _response_data(response) or []
+        return len(data)
 
     async def claim_whatsapp_message(
         self,
@@ -167,17 +209,52 @@ class SupabaseRepository:
         message_id: str,
         *,
         error: str,
-        retryable: bool,
         retry_at: datetime,
     ) -> None:
         await (
             self.client.table("whatsapp_outbox")
             .update(
                 {
-                    "status": "pending" if retryable else "failed",
+                    "status": "pending",
                     "next_attempt_at": retry_at.isoformat(),
                     "locked_at": None,
                     "last_error": error[:4000],
+                }
+            )
+            .eq("id", message_id)
+            .execute()
+        )
+
+    async def schedule_whatsapp_retry(
+        self,
+        message_id: str,
+        *,
+        retry_at: datetime,
+    ) -> None:
+        await (
+            self.client.table("whatsapp_outbox")
+            .update({"next_attempt_at": retry_at.isoformat()})
+            .eq("id", message_id)
+            .eq("status", "pending")
+            .execute()
+        )
+
+    async def discard_whatsapp_message(
+        self,
+        message_id: str,
+        *,
+        reason: str,
+        error: str | None = None,
+    ) -> None:
+        await (
+            self.client.table("whatsapp_outbox")
+            .update(
+                {
+                    "status": "discarded",
+                    "discarded_at": datetime.now(UTC).isoformat(),
+                    "discard_reason": reason,
+                    "last_error": error[:4000] if error else None,
+                    "locked_at": None,
                 }
             )
             .eq("id", message_id)
