@@ -1,11 +1,18 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class WhatsAppOutboxLevel(BaseModel):
+    max_age_seconds: int | None
+    retry_interval_seconds: int | None
+    order: Literal["oldest", "newest", "discard"]
 
 
 class Settings(BaseSettings):
@@ -48,11 +55,55 @@ class Settings(BaseSettings):
     whatsapp_app_secret: str = Field(min_length=1)
     whatsapp_access_token: str = Field(min_length=1)
     whatsapp_phone_number_id: str = Field(min_length=1)
-    whatsapp_retry_interval_seconds: int = Field(default=6, gt=0)
+    whatsapp_bridge_secret: str | None = Field(default=None, min_length=1)
+    whatsapp_outbox_levels: list[WhatsAppOutboxLevel] = Field(
+        default_factory=lambda: [
+            WhatsAppOutboxLevel(
+                max_age_seconds=120,
+                retry_interval_seconds=10,
+                order="oldest",
+            ),
+            WhatsAppOutboxLevel(
+                max_age_seconds=36_000,
+                retry_interval_seconds=60,
+                order="newest",
+            ),
+            WhatsAppOutboxLevel(
+                max_age_seconds=None,
+                retry_interval_seconds=None,
+                order="discard",
+            ),
+        ]
+    )
 
     admin_api_key: str = Field(min_length=1)
 
     default_country_code: str = "967"
+
+    @model_validator(mode="after")
+    def validate_whatsapp_outbox_levels(self) -> "Settings":
+        levels = self.whatsapp_outbox_levels
+        if len(levels) < 2:
+            raise ValueError("WhatsApp outbox needs at least one retry level and one discard level")
+
+        previous_max_age = 0
+        for level in levels[:-1]:
+            if level.max_age_seconds is None or level.max_age_seconds <= previous_max_age:
+                raise ValueError("Retry level age limits must be positive and strictly increasing")
+            if level.retry_interval_seconds is None or level.retry_interval_seconds <= 0:
+                raise ValueError("Retry levels need a positive retry interval")
+            if level.order == "discard":
+                raise ValueError("Only the final WhatsApp outbox level can discard messages")
+            previous_max_age = level.max_age_seconds
+
+        final_level = levels[-1]
+        if (
+            final_level.max_age_seconds is not None
+            or final_level.retry_interval_seconds is not None
+            or final_level.order != "discard"
+        ):
+            raise ValueError("The final WhatsApp outbox level must be an unbounded discard level")
+        return self
 
 
 @lru_cache

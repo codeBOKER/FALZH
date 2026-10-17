@@ -86,16 +86,17 @@ class GroupMessageService:
 
         existing_customer = await self.repository.get_customer_by_phone_number(phone)
         if existing_customer:
-            if existing_customer.get("registered"):
-                logger.info(
-                    "Driver phone %s is registered (customer %s); discarding group message %s",
-                    phone,
-                    existing_customer["id"],
-                    inbound.message_id,
-                )
-                return
-
             driver = await self.repository.get_driver_by_phone_number(phone)
+            if existing_customer.get("registered"):
+                if not driver:
+                    logger.info(
+                        "Phone %s belongs to a registered non-driver customer; "
+                        "discarding group message %s",
+                        phone,
+                        inbound.message_id,
+                    )
+                    return
+
             if driver:
                 existing_trip = await self.repository.get_driver_trip_by_datetime(
                     driver_id=str(driver["id"]),

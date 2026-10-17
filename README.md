@@ -121,8 +121,13 @@ pip install -r requirements.txt
 # 4. Apply database migrations
 # Run the SQL files in supabase/migrations/ in order via Supabase SQL editor or psql
 
-# WhatsApp messages retry every 60 seconds by default. Set
-# WHATSAPP_RETRY_INTERVAL_SECONDS in .env to change the interval.
+# WhatsApp outbox tiers are configured by WHATSAPP_OUTBOX_LEVELS in .env.
+# The default retries oldest-first for 2 minutes, then newest-first (after Level 1
+# is empty) until 10 hours, and retains older messages as discarded records.
+# Each WHATSAPP_OUTBOX_LEVELS entry sets its age limit, retry interval, and order;
+# add or remove retry entries to change the number of levels. The final entry must
+# use order "discard" with null age and retry interval. Set WHATSAPP_BRIDGE_SECRET
+# to enable the authenticated reconnect endpoint.
 
 # 5. Start the server
 uvicorn main:app --reload
@@ -178,6 +183,7 @@ It connects to WhatsApp via the Web protocol, relays inbound messages to the FAL
 | `GET` | `/healthz` | Health check |
 | `GET` | `/webhooks/whatsapp` | Webhook verification (challenge) |
 | `POST` | `/webhooks/whatsapp` | Receive WhatsApp messages |
+| `POST` | `/internal/whatsapp/connected` | Bridge reconnect notification (`X-WhatsApp-Bridge-Secret`); starts outbox delivery |
 | `POST` | `/admin/seed-info` | Seed FALZH RAG info |
 | `POST` | `/admin/sync-trips` | Sync trip embeddings |
 | `POST` | `/admin/jina-embed` | Test embedding |

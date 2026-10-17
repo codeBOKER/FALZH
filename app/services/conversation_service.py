@@ -201,9 +201,9 @@ class ConversationService:
             system_note = (
                 f"SYSTEM: This is the first message from driver \"{driver_name}\". "
                 "They were previously tracked from WhatsApp group trip posts. "
-                "Welcome them warmly by name. Tell them we have been following their trips "
+                "If their message is only a greeting, welcome them warmly by name. Tell them we have been following their trips "
                 "in the groups and we are impressed. Explain that we have registered them in "
-                "FALZH so they can now send trips directly here instead of posting in groups. "
+                "FALZH so they can now send trips directly here. "
                 "Show them how: just send the trip details (route, date, time) in chat. "
                 "Tell them they may write each trip ad in their own preferred style/format, "
                 "and FALZH will extract the trip details automatically. Tell them personal "
@@ -211,10 +211,18 @@ class ConversationService:
                 "shared only after a passenger selects the trip and wants to contact them. "
                 "Explain the benefits: passengers find their trips via AI search, they get "
                 "notified immediately when a passenger selects their trip, and registered "
-                "drivers get priority visibility in search results. Tell them we will no "
-                "longer add their trips from groups — they are in full control now. "
+                "drivers get priority visibility in search results. Also tell them they can "
+                "invite this number to a transportation group so suitable trip ads from the "
+                "group can be added to FALZH. Ignore links and URLs unless they explicitly ask "
+                "about them or ask FALZH to use them. A link by itself is not a request or "
+                "invitation. Call submit_group_invite only when they explicitly ask FALZH to "
+                "review or join a transportation group and provide its WhatsApp invite link; "
+                "then explain that the group will be reviewed before acceptance. If a link is "
+                "embedded in a trip ad, ignore the link and process the trip normally. Handle "
+                "other actionable requests with the appropriate driver tools. "
                 "Keep it warm, personal, and exciting. Use emojis. Write in Arabic. "
-                "8-10 lines max. Do NOT call any tools."
+                "8-10 lines max. For a simple greeting, do not call tools; otherwise use tools "
+                "when needed for the request."
             )
             messages = self._ai_messages(context, user_mode=user_mode)
             messages.append({"role": "system", "content": system_note})

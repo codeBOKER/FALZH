@@ -350,6 +350,24 @@ CREATE TABLE public.messages (
 
 
 --
+-- Name: group_invite_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_invite_submissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    invite_link text NOT NULL,
+    description text,
+    submitted_by_customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+    source_message_id uuid REFERENCES public.messages(id) ON DELETE SET NULL,
+    status text DEFAULT 'pending_review'::text NOT NULL,
+    reviewed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT group_invite_submissions_pkey PRIMARY KEY (id),
+    CONSTRAINT group_invite_submissions_status_check CHECK ((status = ANY (ARRAY['pending_review'::text, 'accepted'::text, 'rejected'::text])))
+);
+
+
+--
 -- Name: whatsapp_outbox; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -365,8 +383,10 @@ CREATE TABLE public.whatsapp_outbox (
     sent_at timestamp with time zone,
     last_error text,
     provider_response jsonb,
+    discarded_at timestamp with time zone,
+    discard_reason text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT whatsapp_outbox_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text]))),
+    CONSTRAINT whatsapp_outbox_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sending'::text, 'sent'::text, 'failed'::text, 'discarded'::text]))),
     CONSTRAINT whatsapp_outbox_attempts_check CHECK ((attempts >= 0))
 );
 
@@ -583,6 +603,20 @@ CREATE INDEX idx_driver_trips_active_route ON public.driver_trips USING btree (s
 
 
 --
+-- Name: idx_group_invite_submissions_review_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_group_invite_submissions_review_queue ON public.group_invite_submissions USING btree (status, created_at);
+
+
+--
+-- Name: idx_group_invite_submissions_customer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_group_invite_submissions_customer ON public.group_invite_submissions USING btree (submitted_by_customer_id, created_at DESC);
+
+
+--
 -- Name: idx_falzh_info_chunks_embedding; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -792,6 +826,12 @@ ALTER TABLE public.falzh_info_chunks ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: group_invite_submissions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_invite_submissions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: whatsapp_outbox; Type: ROW SECURITY; Schema: public; Owner: -

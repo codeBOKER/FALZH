@@ -29,6 +29,37 @@ _ABOUT_FALZH = {
     },
 }
 
+_SUBMIT_GROUP_INVITE = {
+    "type": "function",
+    "function": {
+        "name": "submit_group_invite",
+        "description": (
+            "Store a WhatsApp transportation-group invitation for manual review. Use only "
+            "when the sender explicitly asks FALZH to review or join the group and provides "
+            "its invite link. Merely sharing a link is not enough; ignore incidental links, "
+            "unrelated URLs, and links inside trip advertisements."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "invite_link": {
+                    "type": "string",
+                    "description": "The exact WhatsApp group invitation URL shared by the sender.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": (
+                        "Brief description based only on what the sender says about the group; "
+                        "use an empty string if they provide no description."
+                    ),
+                },
+            },
+            "required": ["invite_link", "description"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 _SEARCH_TRIPS = {
     "type": "function",
     "function": {
@@ -357,6 +388,7 @@ _SWITCH_TO_PASSENGER = {
 
 _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "about_falzh": _ABOUT_FALZH,
+    "submit_group_invite": _SUBMIT_GROUP_INVITE,
     "search_trips": _SEARCH_TRIPS,
     "select_trip": _SELECT_TRIP,
     "create_driver_account": _CREATE_DRIVER_ACCOUNT,
@@ -373,12 +405,14 @@ _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
 _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
     "new_user": [
         "about_falzh",
+        "submit_group_invite",
         "create_driver_account",
         "switch_to_driver",
         "switch_to_passenger",
     ],
     "driver": [
         "about_falzh",
+        "submit_group_invite",
         "check_driver_info",
         "check_driver_trips",
         "add_driver_car",
@@ -389,6 +423,7 @@ _TOOLS_BY_MODE: dict[UserMode, list[str]] = {
     ],
     "passenger": [
         "about_falzh",
+        "submit_group_invite",
         "search_trips",
         "select_trip",
         "create_driver_account",

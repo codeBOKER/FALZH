@@ -108,6 +108,7 @@ class FakeRepository:
         self.trip_embeddings: list[dict[str, Any]] = []
         self.messages: list[dict[str, Any]] = []
         self.trip_selections: list[dict[str, Any]] = []
+        self.group_invite_submissions: list[dict[str, Any]] = []
         self.notification_updates: list[dict[str, Any]] = []
         self.trips_by_id: dict[str, dict[str, Any]] = {}
         self.active_search_results: list[dict[str, Any]] = []
@@ -381,6 +382,25 @@ class FakeRepository:
             ).isoformat(),
         }
         self.messages.append(row)
+        return row
+
+    async def create_group_invite_submission(
+        self,
+        *,
+        invite_link: str,
+        description: str | None,
+        submitted_by_customer_id: str,
+        source_message_id: str | None,
+    ) -> dict[str, Any]:
+        row = {
+            "id": f"group-invite-{len(self.group_invite_submissions) + 1}",
+            "invite_link": invite_link,
+            "description": description,
+            "submitted_by_customer_id": submitted_by_customer_id,
+            "source_message_id": source_message_id,
+            "status": "pending_review",
+        }
+        self.group_invite_submissions.append(row)
         return row
 
     async def get_recent_context_messages(

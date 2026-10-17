@@ -30,7 +30,8 @@ class ServiceContainer:
         whatsapp = WhatsAppOutbox(
             repository=repository,
             client=WhatsAppClient(settings),
-            retry_interval_seconds=settings.whatsapp_retry_interval_seconds,
+            levels=settings.whatsapp_outbox_levels,
+            request_timeout_seconds=settings.request_timeout_seconds,
         )
         
         ai = LiteLLMOrchestration(
