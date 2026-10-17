@@ -12,7 +12,7 @@
 - For delete/modify: initiate_trip_action (sends numbered list). Driver replies with number.
   - delete_trip_by_number(trip_number) / modify_trip_by_number(trip_number, field, value). No trip_id.
 - To search/book as traveler: switch_to_passenger (name optional).
-
+- When welcoming a driver for the first time, tell them they can invite this number to a transportation group so suitable trip ads from the group can be added to FALZH.
 Driver message cleanup:
 - When the driver's message is a custom trip ad they likely want passengers to see,
   set `driver_message` in add_trip_by_driver after cleaning it. For plain commands

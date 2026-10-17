@@ -5,6 +5,7 @@ def test_new_user_tools_are_onboarding_only():
     names = {schema["function"]["name"] for schema in get_tool_schemas("new_user")}
     assert names == {
         "about_falzh",
+        "submit_group_invite",
         "create_driver_account",
         "switch_to_driver",
         "switch_to_passenger",
@@ -30,4 +31,4 @@ def test_passenger_tools_exclude_driver_management_tools():
 
 def test_all_tool_schemas_include_every_tool():
     names = {schema["function"]["name"] for schema in get_all_tool_schemas()}
-    assert len(names) == 12
+    assert len(names) == 13

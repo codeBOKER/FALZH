@@ -1,6 +1,7 @@
 import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,34 @@ class FalzhToolHandlers:
                 "reply_instruction": (
                     "Answer only from this context. If it does not clearly answer the user's "
                     "question, apologize briefly and say there is no confirmed information."
+                ),
+            },
+        )
+
+    async def submit_group_invite(self, arguments: dict[str, Any]) -> ToolResult:
+        invite_link = _normalize_group_invite_link(arguments.get("invite_link"))
+        if not invite_link:
+            return ToolResult(
+                ok=False,
+                data={},
+                error="invite_link must be a valid chat.whatsapp.com invitation URL",
+            )
+
+        source_message_id = (self.current_message or {}).get("id")
+        submission = await self.repository.create_group_invite_submission(
+            invite_link=invite_link,
+            description=_optional_string(arguments.get("description")),
+            submitted_by_customer_id=str(self.customer["id"]),
+            source_message_id=(str(source_message_id) if source_message_id else None),
+        )
+        return ToolResult(
+            ok=True,
+            data={
+                "status": submission.get("status", "pending_review"),
+                "reply_instruction": (
+                    "Confirm that the group invitation was saved for review. Say the group "
+                    "will be checked before any invitation is accepted. Do not say FALZH has "
+                    "joined or accepted the invitation yet."
                 ),
             },
         )
@@ -931,6 +960,32 @@ def _optional_string(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _normalize_group_invite_link(value: Any) -> str | None:
+    raw = _optional_string(value)
+    if not raw:
+        return None
+
+    raw = raw.strip("<>()[]{}«»\"'").rstrip(".,;:!?")
+    candidate = raw if "://" in raw else f"https://{raw.lstrip('/')}"
+    try:
+        parsed = urlsplit(candidate)
+        port = parsed.port
+    except ValueError:
+        return None
+
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.hostname != "chat.whatsapp.com"
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in {None, 80, 443}
+        or not parsed.path.strip("/")
+        or any(character.isspace() for character in candidate)
+    ):
+        return None
+    return candidate
 
 
 def _optional_int(value: Any) -> int | None:

@@ -566,6 +566,29 @@ class SupabaseRepository:
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
 
+    async def create_group_invite_submission(
+        self,
+        *,
+        invite_link: str,
+        description: str | None,
+        submitted_by_customer_id: str,
+        source_message_id: str | None,
+    ) -> dict[str, Any]:
+        payload = {
+            "invite_link": invite_link,
+            "description": description,
+            "submitted_by_customer_id": submitted_by_customer_id,
+            "source_message_id": source_message_id,
+        }
+        response = await (
+            self.client.table("group_invite_submissions")
+            .insert(payload)
+            .select("id,status,created_at")
+            .execute()
+        )
+        data = _response_data(response)
+        return data[0] if isinstance(data, list) else data
+
     async def get_recent_context_messages(
         self,
         *,
