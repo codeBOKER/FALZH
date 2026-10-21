@@ -90,6 +90,7 @@ def test_app(settings: Settings) -> Any:
         settings=settings,
         conversation=DummyConversation(),
         admin=DummyAdmin(),
+        whatsapp=FakeWhatsApp(),
     )
     app = create_app(settings=settings, container=container)
     app.state.test_container = container
@@ -468,8 +469,13 @@ class FakeRepository:
         self.notification_updates.append(update)
         return update
 
-    async def count_trip_selections(self, trip_id: str) -> int:
-        return sum(1 for s in self.trip_selections if s["trip_id"] == trip_id)
+    async def count_pending_trip_selections(self, trip_ids: list[str]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for selection in self.trip_selections:
+            trip_id = selection["trip_id"]
+            if trip_id in trip_ids:
+                counts[trip_id] = counts.get(trip_id, 0) + 1
+        return counts
 
     async def get_driver_by_phone(self, remote_jid: str) -> dict[str, Any] | None:
         return self.drivers_by_remote_jid.get(remote_jid)
@@ -648,16 +654,38 @@ class FakeEmbeddings:
 
 
 class FakeWhatsApp:
-    def __init__(self, *, fail: bool = False) -> None:
+    def __init__(self, *, fail: bool = False, queue_outbox: bool = False) -> None:
         self.fail = fail
+        self.queue_outbox = queue_outbox
+        self.outbox_counter = 0
         self.sent: list[tuple[str, str]] = []
         self.interactive_lists: list[tuple[str, dict[str, Any]]] = []
+        self.flush_pending_calls = 0
 
     async def send_text(self, to_phone: str, text: str) -> dict[str, Any]:
         if self.fail:
             raise RuntimeError("send failed")
         self.sent.append((to_phone, text))
         return {"messages": [{"id": "sent"}]}
+
+    async def send_texts(self, to_phone: str, texts: list[str]) -> list[dict[str, Any]]:
+        if self.fail:
+            raise RuntimeError("send failed")
+        responses = []
+        for text in texts:
+            if self.queue_outbox:
+                self.outbox_counter += 1
+                responses.append(
+                    {
+                        "messages": [{}],
+                        "queued": True,
+                        "outbox_id": f"out-{self.outbox_counter}",
+                    }
+                )
+                continue
+            self.sent.append((to_phone, text))
+            responses.append({"messages": [{"id": "sent"}], "outbox_id": None})
+        return responses
 
     async def send_interactive_list(
         self,
@@ -668,6 +696,10 @@ class FakeWhatsApp:
             raise RuntimeError("send failed")
         self.interactive_lists.append((to_phone, interactive))
         return {"messages": [{"id": "sent-interactive"}]}
+
+    async def flush_pending(self) -> int:
+        self.flush_pending_calls += 1
+        return 0
 
 
 class FakeAI:

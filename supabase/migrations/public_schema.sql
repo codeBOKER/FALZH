@@ -34,6 +34,77 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
+-- Name: claim_whatsapp_outbox_message(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_whatsapp_outbox_message(p_message_id uuid, p_ignore_retry_time boolean DEFAULT false)
+    RETURNS SETOF public.whatsapp_outbox
+    LANGUAGE plpgsql
+    SECURITY INVOKER
+    SET search_path = ''
+    AS $$
+declare
+  v_recipient text;
+begin
+  select queued.recipient into v_recipient
+  from public.whatsapp_outbox as queued
+  where queued.id = p_message_id;
+
+  if not found then
+    return;
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(v_recipient, 0)
+  );
+
+  if exists (
+    select 1
+    from public.whatsapp_outbox as queued
+    where queued.recipient = v_recipient
+      and queued.status = 'sending'
+  ) then
+    return;
+  end if;
+
+  return query
+  update public.whatsapp_outbox as queued
+  set status = 'sending',
+      attempts = queued.attempts + 1,
+      last_attempt_at = pg_catalog.now(),
+      locked_at = pg_catalog.now(),
+      last_error = null
+  where queued.id = p_message_id
+    and queued.status = 'pending'
+    and (
+      p_ignore_retry_time
+      or queued.next_attempt_at <= pg_catalog.now()
+    )
+  returning queued.*;
+end;
+$$;
+
+
+--
+-- Name: count_pending_trip_selections(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.count_pending_trip_selections(p_trip_ids uuid[])
+    RETURNS TABLE(trip_id uuid, selection_count bigint)
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+    AS $$
+  select selections.trip_id, count(*)::bigint as selection_count
+  from public.trip_selections as selections
+  where selections.trip_id = any (p_trip_ids)
+    and selections.status = 'pending'
+  group by selections.trip_id;
+$$;
+
+
+--
 -- Name: departure_bucket_clock_time(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -46,6 +117,35 @@ CREATE FUNCTION public.departure_bucket_clock_time(bucket text) RETURNS time wit
     when 'night' then time '18:00'
     else null
   end;
+$$;
+
+
+--
+-- Name: list_pending_whatsapp_queue_heads(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.list_pending_whatsapp_queue_heads()
+    RETURNS TABLE(recipient text, created_at timestamp with time zone, next_attempt_at timestamp with time zone)
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+    AS $$
+  with queue_heads as (
+    select distinct on (queued.recipient)
+      queued.recipient,
+      queued.created_at,
+      queued.next_attempt_at
+    from public.whatsapp_outbox as queued
+    where queued.status = 'pending'
+    order by queued.recipient, queued.created_at, queued.id
+  )
+  select
+    queue_heads.recipient,
+    queue_heads.created_at,
+    queue_heads.next_attempt_at
+  from queue_heads
+  order by queue_heads.created_at, queue_heads.recipient;
 $$;
 
 
@@ -631,10 +731,38 @@ CREATE INDEX idx_messages_customer_created_at ON public.messages USING btree (cu
 
 
 --
+-- Name: idx_messages_outbox_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messages_outbox_id ON public.messages USING btree ((metadata ->> 'outbox_id'::text)) WHERE (metadata ->> 'outbox_id'::text) IS NOT NULL;
+
+
+--
 -- Name: idx_whatsapp_outbox_queue; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_whatsapp_outbox_queue ON public.whatsapp_outbox USING btree (created_at, id) WHERE (status = ANY (ARRAY['pending'::text, 'sending'::text]));
+
+
+--
+-- Name: idx_whatsapp_outbox_recipient_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_outbox_recipient_active ON public.whatsapp_outbox USING btree (recipient) WHERE (status = ANY (ARRAY['pending'::text, 'sending'::text]));
+
+
+--
+-- Name: idx_whatsapp_outbox_recipient_pending_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_outbox_recipient_pending_queue ON public.whatsapp_outbox USING btree (recipient, created_at, id) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: idx_whatsapp_outbox_recipient_sending; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_outbox_recipient_sending ON public.whatsapp_outbox USING btree (recipient) WHERE (status = 'sending'::text);
 
 
 --

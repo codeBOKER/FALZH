@@ -50,6 +50,7 @@ async def test_conversation_stores_messages_uses_last_four_context_and_sends_rep
         "create_driver_account",
         "switch_to_driver",
         "switch_to_passenger",
+        "submit_group_invite",
     }
 
 
@@ -116,6 +117,7 @@ async def test_conversation_uses_passenger_tools_when_user_mode_is_passenger(set
         "select_trip",
         "create_driver_account",
         "switch_to_driver",
+        "submit_group_invite",
     }
     assert "travel booking assistant" in ai.calls[0]["messages"][0]["content"]
 
@@ -173,6 +175,7 @@ async def test_returning_driver_gets_welcome_and_upgraded_to_driver(settings):
         "initiate_trip_action",
         "update_trip_field",
         "switch_to_passenger",
+        "submit_group_invite",
     }
 
     # System note should be appended with returning-driver context
@@ -224,6 +227,7 @@ async def test_conversation_uses_driver_tools_when_user_mode_is_driver(settings)
         "initiate_trip_action",
         "update_trip_field",
         "switch_to_passenger",
+        "submit_group_invite",
     }
 
 
