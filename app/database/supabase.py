@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from app.config import Settings
@@ -32,32 +32,39 @@ class SupabaseRepository:
     def __init__(self, client: Any) -> None:
         self.client = client
 
-    async def enqueue_whatsapp_message(
+    async def enqueue_whatsapp_messages(
         self,
         *,
         recipient: str,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        now = datetime.now(UTC).isoformat()
+        payloads: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        base = datetime.now(UTC)
+        rows = [
+            {
+                "recipient": recipient,
+                "payload": payload,
+                "status": "pending",
+                "next_attempt_at": (base + timedelta(microseconds=index)).isoformat(),
+                "created_at": (base + timedelta(microseconds=index)).isoformat(),
+            }
+            for index, payload in enumerate(payloads)
+        ]
         response = await (
             self.client.table("whatsapp_outbox")
-            .insert(
-                {
-                    "recipient": recipient,
-                    "payload": payload,
-                    "status": "pending",
-                    "next_attempt_at": now,
-                }
-            )
+            .insert(rows)
             .select("*")
             .execute()
         )
-        data = _response_data(response)
-        return data[0] if isinstance(data, list) else data
+        data = _response_data(response) or []
+        if not isinstance(data, list):
+            data = [data]
+        data.sort(key=lambda row: str(row.get("created_at") or ""))
+        return data
 
     async def get_pending_whatsapp_message(
         self,
         *,
+        recipient: str,
         newer_than: datetime | None,
         older_than: datetime | None,
         newest_first: bool,
@@ -66,6 +73,7 @@ class SupabaseRepository:
             self.client.table("whatsapp_outbox")
             .select("*")
             .eq("status", "pending")
+            .eq("recipient", recipient)
         )
         if newer_than:
             query = query.gte("created_at", newer_than.isoformat())
@@ -80,11 +88,18 @@ class SupabaseRepository:
         data = _response_data(response) or []
         return data[0] if data else None
 
-    async def has_sending_whatsapp_message(self) -> bool:
+    async def list_pending_whatsapp_queue_heads(self) -> list[dict[str, Any]]:
+        response = await self.client.rpc(
+            "list_pending_whatsapp_queue_heads",
+        ).execute()
+        return _response_data(response) or []
+
+    async def has_pending_whatsapp_messages(self, recipient: str) -> bool:
         response = await (
             self.client.table("whatsapp_outbox")
             .select("id")
-            .eq("status", "sending")
+            .eq("recipient", recipient)
+            .in_("status", ["pending", "sending"])
             .limit(1)
             .execute()
         )
@@ -116,36 +131,13 @@ class SupabaseRepository:
         *,
         ignore_retry_time: bool = False,
     ) -> dict[str, Any] | None:
-        attempts_response = await (
-            self.client.table("whatsapp_outbox")
-            .select("attempts")
-            .eq("id", message_id)
-            .eq("status", "pending")
-            .maybe_single()
-            .execute()
-        )
-        row = _response_data(attempts_response)
-        if not row:
-            return None
-
-        now = datetime.now(UTC).isoformat()
-        update = (
-            self.client.table("whatsapp_outbox")
-            .update(
-                {
-                    "status": "sending",
-                    "attempts": int(row.get("attempts") or 0) + 1,
-                    "last_attempt_at": now,
-                    "locked_at": now,
-                    "last_error": None,
-                }
-            )
-            .eq("id", message_id)
-            .eq("status", "pending")
-        )
-        if not ignore_retry_time:
-            update = update.lte("next_attempt_at", now)
-        response = await update.select("*").execute()
+        response = await self.client.rpc(
+            "claim_whatsapp_outbox_message",
+            {
+                "p_message_id": message_id,
+                "p_ignore_retry_time": ignore_retry_time,
+            },
+        ).execute()
         data = _response_data(response) or []
         return data[0] if data else None
 
@@ -1090,15 +1082,23 @@ class SupabaseRepository:
         data = _response_data(response)
         return data[0] if isinstance(data, list) else data
 
-    async def count_trip_selections(self, trip_id: str) -> int:
-        response = await (
-            self.client.table("trip_selections")
-            .select("id", count="exact")
-            .eq("trip_id", trip_id)
-            .eq("status", "pending")
-            .execute()
-        )
-        return response.count if hasattr(response, "count") and response.count is not None else 0
+    async def count_pending_trip_selections(
+        self,
+        trip_ids: list[str],
+    ) -> dict[str, int]:
+        ids = [trip_id for trip_id in trip_ids if trip_id]
+        if not ids:
+            return {}
+        response = await self.client.rpc(
+            "count_pending_trip_selections",
+            {"p_trip_ids": ids},
+        ).execute()
+        rows = _response_data(response) or []
+        return {
+            str(row["trip_id"]): int(row.get("selection_count") or 0)
+            for row in rows
+            if row.get("trip_id")
+        }
 
 
 def _driver_is_registered(trip: dict[str, Any]) -> bool:

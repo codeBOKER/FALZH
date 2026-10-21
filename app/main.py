@@ -57,6 +57,9 @@ def create_app(
                     await retry_worker
                 except asyncio.CancelledError:
                     pass
+            close_container = getattr(getattr(app.state, "container", None), "aclose", None)
+            if callable(close_container):
+                await close_container()
 
     app = FastAPI(title="FALZH API", version="0.1.0", lifespan=lifespan)
     app.include_router(router)

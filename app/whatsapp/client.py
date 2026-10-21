@@ -21,6 +21,9 @@ class WhatsAppSender(Protocol):
     async def send_text(self, remoteJid: str, text: str) -> dict[str, Any]:
         ...
 
+    async def send_texts(self, remoteJid: str, texts: list[str]) -> list[dict[str, Any]]:
+        ...
+
     async def send_interactive_list(
         self,
         remoteJid: str,
@@ -33,6 +36,17 @@ class WhatsAppClient:
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._settings = settings
         self._client = client
+        self._owns_client = client is None
+
+    def _http(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self._settings.request_timeout_seconds)
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._owns_client and self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     @property
     def _messages_url(self) -> str:
@@ -81,15 +95,11 @@ class WhatsAppClient:
             "Content-Type": "application/json",
         }
 
-        if self._client is not None:
-            response = await self._client.post(
-                self._messages_url,
-                json=payload,
-                headers=headers,
-            )
-        else:
-            async with httpx.AsyncClient(timeout=self._settings.request_timeout_seconds) as client:
-                response = await client.post(self._messages_url, json=payload, headers=headers)
+        response = await self._http().post(
+            self._messages_url,
+            json=payload,
+            headers=headers,
+        )
 
         if response.status_code >= 400:
             raise WhatsAppClientError(

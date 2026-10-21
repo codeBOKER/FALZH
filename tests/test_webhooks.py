@@ -51,10 +51,33 @@ def test_post_webhook_validates_signature_and_accepts_text(test_app):
         )
 
     conversation = test_app.state.test_container.conversation
+    whatsapp = test_app.state.test_container.whatsapp
     assert response.status_code == 200
     assert response.json() == {"status": "accepted", "messages": 1}
     assert len(conversation.calls) == 1
     assert conversation.calls[0].text == "I need Aden to Mukalla"
+    assert whatsapp.flush_pending_calls == 1
+
+
+def test_post_webhook_without_messages_does_not_flush(test_app):
+    payload = whatsapp_payload(message_id="wamid.status")
+    messages = payload["entry"][0]["changes"][0]["value"].pop("messages")
+    payload["entry"][0]["changes"][0]["value"]["statuses"] = messages
+    body, signature = signed_body(payload, "app-secret")
+
+    with TestClient(test_app) as client:
+        response = client.post(
+            "/webhooks/whatsapp",
+            content=body,
+            headers={
+                "content-type": "application/json",
+                "x-hub-signature-256": signature,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "accepted", "messages": 0}
+    assert test_app.state.test_container.whatsapp.flush_pending_calls == 0
 
 
 def test_post_webhook_debug_returns_reply_and_status(test_app):

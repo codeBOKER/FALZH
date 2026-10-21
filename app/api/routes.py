@@ -86,6 +86,11 @@ async def receive_whatsapp_webhook(
             background_tasks.add_task(
                 container.conversation.handle_inbound_message, inbound
             )
+    if messages:
+        # An inbound webhook means WhatsApp is reachable: flush any queued
+        # backlog so failed messages go out immediately. Scheduled last so a
+        # slow WhatsApp API never delays the reply.
+        background_tasks.add_task(container.whatsapp.flush_pending)
 
     return WebhookAcceptedResponse(messages=len(messages))
 

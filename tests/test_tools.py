@@ -913,6 +913,32 @@ async def test_initiate_trip_action_returns_no_trips_message():
 
 
 @pytest.mark.asyncio
+async def test_failed_trip_cards_are_persisted_with_outbox_id():
+    repository = FakeRepository()
+    whatsapp = FakeWhatsApp(queue_outbox=True)
+    _driver_setup(repository)
+    handlers = make_handlers(
+        repository=repository,
+        whatsapp=whatsapp,
+        sender_phone="967700000010",
+    )
+
+    result = await handlers.initiate_trip_action({"action_type": "DELETE"})
+
+    assert result.ok is True
+    assert whatsapp.sent == []
+    assistant_messages = [
+        message for message in repository.messages if message["sender_type"] == "assistant"
+    ]
+    assert [message["metadata"]["outbox_id"] for message in assistant_messages] == [
+        "out-1",
+        "out-2",
+    ]
+    assert all(message["whatsapp_message_id"] is None for message in assistant_messages)
+    assert assistant_messages[0]["metadata"]["type"] == "driver_trip_card"
+
+
+@pytest.mark.asyncio
 async def test_update_trip_field_uses_active_session_and_clears_it():
     repository = FakeRepository()
     customer = await repository.upsert_customer(phone_number="967700000010")

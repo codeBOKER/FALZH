@@ -148,7 +148,7 @@ class ConversationService:
                                 await self.repository.cancel_driver_trip(trip_id)
                                 await unindex_trip(repository=self.repository, trip_id=trip_id)
                                 reply = "تم حذف الرحلة بنجاح"
-                                await self._store_and_send_assistant_reply(
+                                await self._send_and_store_assistant_reply(
                                     customer,
                                     inbound.remoteJid,
                                     reply,
@@ -188,7 +188,7 @@ class ConversationService:
                                     registry=registry,
                                 )
                                 if reply:
-                                    await self._store_and_send_assistant_reply(
+                                    await self._send_and_store_assistant_reply(
                                         customer,
                                         inbound.remoteJid,
                                         reply,
@@ -258,7 +258,7 @@ class ConversationService:
 
         return reply
 
-    async def _store_and_send_assistant_reply(
+    async def _send_and_store_assistant_reply(
         self,
         customer: dict[str, Any],
         remoteJid: str,
@@ -266,13 +266,13 @@ class ConversationService:
         *,
         user_mode: UserMode,
     ) -> None:
+        await self.whatsapp.send_text(remoteJid, reply)
         await self.repository.create_message(
             customer_id=str(customer["id"]),
             sender_type="assistant",
             message=reply,
             metadata={"provider_flow": "trip_interactive_reply", "user_mode": user_mode},
         )
-        await self.whatsapp.send_text(remoteJid, reply)
 
     def _tool_registry(
         self,
