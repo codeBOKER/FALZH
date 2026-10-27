@@ -71,3 +71,6 @@ class ServiceContainer:
             group_message=group_message,
             admin=admin,
         )
+
+    async def aclose(self) -> None:
+        await self.whatsapp.aclose()

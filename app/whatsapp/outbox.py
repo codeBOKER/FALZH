@@ -28,11 +28,23 @@ class WhatsAppOutbox:
             for level in levels
             if level.retry_interval_seconds is not None
         )
-        self._send_lock = asyncio.Lock()
+        self._recipient_locks: dict[str, asyncio.Lock] = {}
+
+    def _lock_for(self, recipient: str) -> asyncio.Lock:
+        lock = self._recipient_locks.get(recipient)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._recipient_locks[recipient] = lock
+        return lock
 
     async def send_text(self, remoteJid: str, text: str) -> dict[str, Any]:
-        payload = self.client.build_text_payload(remoteJid, text)
-        return await self._enqueue_and_send(remoteJid, payload)
+        return (await self.send_texts(remoteJid, [text]))[0]
+
+    async def send_texts(self, remoteJid: str, texts: list[str]) -> list[dict[str, Any]]:
+        if not texts:
+            return []
+        payloads = [self.client.build_text_payload(remoteJid, text) for text in texts]
+        return await self._send_payloads(remoteJid, payloads)
 
     async def send_interactive_list(
         self,
@@ -40,37 +52,56 @@ class WhatsAppOutbox:
         interactive: dict[str, Any],
     ) -> dict[str, Any]:
         payload = self.client.build_interactive_list_payload(remoteJid, interactive)
-        return await self._enqueue_and_send(remoteJid, payload)
+        return (await self._send_payloads(remoteJid, [payload]))[0]
 
-    async def _enqueue_and_send(
+    async def _send_payloads(
         self,
         recipient: str,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        row = await self.repository.enqueue_whatsapp_message(
+        payloads: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        # Per-recipient lock keeps messages for the same chat ordered while
+        # letting different chats send concurrently.
+        async with self._lock_for(recipient):
+            if await self.repository.has_pending_whatsapp_messages(recipient):
+                # This chat already has a backlog, so queue behind it instead of
+                # sending directly: a new message must never overtake an older
+                # one that is still waiting to be delivered.
+                return await self._queue_payloads(recipient, payloads)
+
+            responses: list[dict[str, Any]] = []
+            queue_from: int | None = None
+            for index, payload in enumerate(payloads):
+                try:
+                    responses.append(await self.client.send_payload(payload))
+                except Exception as exc:  # noqa: BLE001
+                    # Queue this message and every message after it so delivery
+                    # order is preserved. Even non-retryable rejections (e.g. 4xx)
+                    # must be persisted rather than silently dropped.
+                    if isinstance(exc, WhatsAppClientError) and not exc.retryable:
+                        logger.warning(
+                            "WhatsApp rejected a message for %s permanently: %s",
+                            recipient,
+                            exc,
+                        )
+                    queue_from = index
+                    break
+
+            if queue_from is not None:
+                responses.extend(
+                    await self._queue_payloads(recipient, payloads[queue_from:])
+                )
+            return responses
+
+    async def _queue_payloads(
+        self,
+        recipient: str,
+        payloads: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        rows = await self.repository.enqueue_whatsapp_messages(
             recipient=recipient,
-            payload=payload,
+            payloads=payloads,
         )
-        async with self._send_lock:
-            await self._recover_and_discard_expired()
-            if await self.repository.has_sending_whatsapp_message():
-                return _queued_response(row)
-
-            candidate, _ = await self._next_pending_message(datetime.now(UTC))
-            if not candidate or candidate.get("id") != row.get("id"):
-                return _queued_response(row)
-
-            if _is_future(candidate.get("next_attempt_at")):
-                return _queued_response(row)
-
-            claimed = await self.repository.claim_whatsapp_message(str(row["id"]))
-            if not claimed:
-                return _queued_response(row)
-
-            result = await self._deliver_claimed(claimed)
-            if not result["retryable"]:
-                await self._drain_ready_messages(force=True)
-            return result.get("response") or _queued_response(row)
+        return [_queued_response(row["id"]) for row in rows]
 
     async def run_retry_worker(self) -> None:
         while True:
@@ -81,50 +112,59 @@ class WhatsAppOutbox:
                 logger.exception("WhatsApp outbox retry pass failed")
 
     async def retry_pending_messages(self) -> int:
-        async with self._send_lock:
-            await self._recover_and_discard_expired()
-            if await self.repository.has_sending_whatsapp_message():
-                return 0
-
-            candidate, level = await self._next_pending_message(datetime.now(UTC))
-            if not candidate or level is None:
-                return 0
-            await self._align_retry_schedule(candidate, level)
-            if _is_future(candidate.get("next_attempt_at")):
-                return 0
-
-            claimed = await self.repository.claim_whatsapp_message(str(candidate["id"]))
-            if not claimed:
-                return 0
-
-            result = await self._deliver_claimed(claimed)
-            sent = int(result["sent"])
-            if result["retryable"]:
-                return sent
-
-            # A successful probe means the API is reachable. Drain in priority order,
-            # bypassing per-message retry times for this recovery pass.
-            sent += await self._drain_ready_messages(force=True)
-            return sent
+        await self._run_maintenance()
+        sent = 0
+        for head in await self.repository.list_pending_whatsapp_queue_heads():
+            recipient = str(head["recipient"])
+            async with self._lock_for(recipient):
+                delivered = await self._drain_recipient(recipient, force=False)
+                sent += sum(1 for response in delivered.values() if response.get("sent"))
+        return sent
 
     async def on_connection_restored(self) -> int:
-        async with self._send_lock:
-            await self._recover_and_discard_expired()
-            if await self.repository.has_sending_whatsapp_message():
-                return 0
-            return await self._drain_ready_messages(force=True)
-
-    async def _drain_ready_messages(self, *, force: bool = False) -> int:
+        await self._run_maintenance()
         sent = 0
+        for head in await self.repository.list_pending_whatsapp_queue_heads():
+            recipient = str(head["recipient"])
+            async with self._lock_for(recipient):
+                delivered = await self._drain_recipient(recipient, force=True)
+                sent += sum(1 for response in delivered.values() if response.get("sent"))
+        return sent
+
+    async def flush_pending(self) -> int:
+        """Force-deliver every queued message for every recipient.
+
+        Called on inbound webhooks so a freshly reached chat flushes its
+        pending backlog immediately. Skips maintenance: recovery belongs to
+        the retry worker and the connection-restored path.
+        """
+        sent = 0
+        for head in await self.repository.list_pending_whatsapp_queue_heads():
+            recipient = str(head["recipient"])
+            async with self._lock_for(recipient):
+                delivered = await self._drain_recipient(recipient, force=True)
+                sent += sum(1 for response in delivered.values() if response.get("sent"))
+        return sent
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
+    async def _drain_recipient(
+        self,
+        recipient: str,
+        *,
+        force: bool,
+    ) -> dict[str, dict[str, Any]]:
+        delivered: dict[str, dict[str, Any]] = {}
         while True:
-            await self._discard_expired_messages()
-            if await self.repository.has_sending_whatsapp_message():
+            now = datetime.now(UTC)
+            candidate, level = await self._next_pending_message(recipient, now)
+            if not candidate or level is None:
                 break
-            candidate, _ = await self._next_pending_message(datetime.now(UTC))
-            if not candidate:
-                break
-            if not force and _is_future(candidate.get("next_attempt_at")):
-                break
+            if not force:
+                await self._align_retry_schedule(candidate, level)
+                if _is_future(candidate.get("next_attempt_at")):
+                    break
 
             claimed = await self.repository.claim_whatsapp_message(
                 str(candidate["id"]),
@@ -134,14 +174,19 @@ class WhatsAppOutbox:
                 break
 
             result = await self._deliver_claimed(claimed)
-            sent += int(result["sent"])
+            delivered[str(claimed["id"])] = result.get("response") or _queued_response(
+                claimed.get("id")
+            )
             if result["retryable"]:
                 break
+            # A successful delivery means the API is reachable; keep draining
+            # the rest of this recipient's queue without waiting out retries.
             force = True
-        return sent
+        return delivered
 
     async def _next_pending_message(
         self,
+        recipient: str,
         now: datetime,
     ) -> tuple[dict[str, Any] | None, WhatsAppOutboxLevel | None]:
         previous_max_age = 0
@@ -156,6 +201,7 @@ class WhatsAppOutbox:
                 else None
             )
             row = await self.repository.get_pending_whatsapp_message(
+                recipient=recipient,
                 newer_than=newer_than,
                 older_than=older_than,
                 newest_first=level.order == "newest",
@@ -165,7 +211,7 @@ class WhatsAppOutbox:
             previous_max_age = level.max_age_seconds or previous_max_age
         return None, None
 
-    async def _recover_and_discard_expired(self) -> None:
+    async def _run_maintenance(self) -> None:
         lease_seconds = max(
             self.poll_interval_seconds * 3,
             int(self.request_timeout_seconds) + 10,
@@ -173,9 +219,6 @@ class WhatsAppOutbox:
         await self.repository.recover_stale_whatsapp_messages(
             stale_before=datetime.now(UTC) - timedelta(seconds=lease_seconds),
         )
-        await self._discard_expired_messages()
-
-    async def _discard_expired_messages(self) -> None:
         final_retry_level = self.levels[-2]
         cutoff = datetime.now(UTC) - timedelta(
             seconds=final_retry_level.max_age_seconds or 0
@@ -253,18 +296,30 @@ class WhatsAppOutbox:
             return {
                 "sent": False,
                 "retryable": retryable,
-                "response": _queued_response(row, error=str(exc), retryable=retryable),
+                "response": _queued_response(
+                    row.get("id"),
+                    error=str(exc),
+                    retryable=retryable,
+                ),
             }
 
         await self.repository.mark_whatsapp_message_sent(
             str(row["id"]),
             provider_response=response,
         )
-        return {"sent": True, "retryable": False, "response": response}
+        return {
+            "sent": True,
+            "retryable": False,
+            "response": {
+                **response,
+                "outbox_id": row.get("id"),
+                "sent": True,
+            },
+        }
 
 
 def _queued_response(
-    row: dict[str, Any],
+    outbox_id: Any,
     *,
     error: str | None = None,
     retryable: bool = True,
@@ -273,7 +328,7 @@ def _queued_response(
         "messages": [{}],
         "queued": retryable,
         "failed": not retryable,
-        "outbox_id": row.get("id"),
+        "outbox_id": outbox_id,
     }
     if error:
         response["error"] = error

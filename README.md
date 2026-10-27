@@ -128,6 +128,11 @@ pip install -r requirements.txt
 # add or remove retry entries to change the number of levels. The final entry must
 # use order "discard" with null age and retry interval. Set WHATSAPP_BRIDGE_SECRET
 # to enable the authenticated reconnect endpoint.
+#
+# Sends are ordered per chat. A message that fails to send is stored in
+# whatsapp_outbox together with the messages behind it, and a new message for a
+# chat that still has a backlog waits behind it, so nothing is dropped silently
+# and nothing is delivered out of order.
 
 # 5. Start the server
 uvicorn main:app --reload

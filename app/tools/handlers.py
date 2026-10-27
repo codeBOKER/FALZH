@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -24,7 +25,7 @@ from app.utils.departure import (
     trip_satisfies_departure_request,
 )
 from app.utils.emoji import count_emojis
-from app.whatsapp.client import WhatsAppClientError, WhatsAppSender
+from app.whatsapp.client import WhatsAppSender
 from app.whatsapp.trip_selection import format_trip_card
 
 
@@ -60,6 +61,46 @@ class FalzhToolHandlers:
             return None
         original_meta = original.get("metadata") or {}
         return original_meta.get("trip_id")
+
+    async def _send_and_record_batch(
+        self,
+        items: list[tuple[str, dict[str, Any]]],
+    ) -> None:
+        """Send several texts to this chat as one batch and persist each one.
+
+        Messages are sent directly when possible; on failure the remaining
+        batch is queued in order so delivery is never silently dropped.
+        """
+        if not items:
+            return
+        responses = await self.whatsapp.send_texts(
+            self.remoteJid,
+            [text for text, _ in items],
+        )
+        create_tasks = []
+        for (text, metadata), response in zip(items, responses, strict=False):
+            wam_id = (response.get("messages") or [{}])[0].get("id")
+            if wam_id:
+                create_tasks.append(
+                    self.repository.create_message(
+                        customer_id=str(self.customer["id"]),
+                        sender_type="assistant",
+                        message=text,
+                        whatsapp_message_id=wam_id,
+                        metadata=metadata,
+                    )
+                )
+            elif response.get("outbox_id"):
+                create_tasks.append(
+                    self.repository.create_message(
+                        customer_id=str(self.customer["id"]),
+                        sender_type="assistant",
+                        message=text,
+                        metadata={**metadata, "outbox_id": response["outbox_id"]},
+                    )
+                )
+        if create_tasks:
+            await asyncio.gather(*create_tasks)
 
     async def about_falzh(self, arguments: dict[str, Any]) -> ToolResult:
         query = str(arguments.get("query") or "").strip()
@@ -214,46 +255,29 @@ class FalzhToolHandlers:
         top_trips = filtered[:5]
 
         if top_trips:
+            counts = await self.repository.count_pending_trip_selections(
+                [trip_summary["trip_id"] for trip_summary in top_trips]
+            )
+            items: list[tuple[str, dict[str, Any]]] = []
             for trip_summary in top_trips:
                 trip_id = trip_summary["trip_id"]
-                selection_count = await self.repository.count_trip_selections(trip_id)
+                selection_count = int(counts.get(trip_id) or 0)
                 trip_summary["selection_count"] = selection_count
-                trip = next((t for t in trips if (t.get("trip_id") or t.get("id")) == trip_id), {})
+                trip = next(
+                    (t for t in trips if (t.get("trip_id") or t.get("id")) == trip_id),
+                    {},
+                )
                 trip["selection_count"] = selection_count
-                card = format_trip_card(trip)
-                try:
-                    resp = await self.whatsapp.send_text(self.remoteJid, card)
-                    wam_id = resp.get("messages", [{}])[0].get("id")
-                    if wam_id:
-                        await self.repository.create_message(
-                            customer_id=str(self.customer["id"]),
-                            sender_type="assistant",
-                            message=card,
-                            whatsapp_message_id=wam_id,
-                            metadata={"trip_id": trip_id, "type": "trip_card"},
-                        )
-                    elif resp.get("outbox_id"):
-                        await self.repository.create_message(
-                            customer_id=str(self.customer["id"]),
-                            sender_type="assistant",
-                            message=card,
-                            metadata={
-                                "trip_id": trip_id,
-                                "type": "trip_card",
-                                "outbox_id": resp["outbox_id"],
-                            },
-                        )
-                except WhatsAppClientError:
-                    logger.warning("Failed to send trip card for trip %s", trip_id)
-
-            prompt = "يرجى الرد على إحدى بطاقات الرحلات أعلاه لاختيار رحلتك"
-            await self.whatsapp.send_text(self.remoteJid, prompt)
-            await self.repository.create_message(
-                customer_id=str(self.customer["id"]),
-                sender_type="assistant",
-                message=prompt,
-                metadata={"type": "trip_selection_prompt"},
+                items.append(
+                    (format_trip_card(trip), {"trip_id": trip_id, "type": "trip_card"})
+                )
+            items.append(
+                (
+                    "يرجى الرد على إحدى بطاقات الرحلات أعلاه لاختيار رحلتك",
+                    {"type": "trip_selection_prompt"},
+                )
             )
+            await self._send_and_record_batch(items)
 
             return ToolResult(
                 ok=True,
@@ -463,44 +487,23 @@ class FalzhToolHandlers:
                 },
             )
 
-        for trip in trips[:5]:
-            trip_id = trip.get("trip_id") or trip.get("id")
-            selection_count = await self.repository.count_trip_selections(trip_id)
-            trip["selection_count"] = selection_count
-            card = format_trip_card(trip)
-            try:
-                resp = await self.whatsapp.send_text(self.remoteJid, card)
-                wam_id = resp.get("messages", [{}])[0].get("id")
-                if wam_id:
-                    await self.repository.create_message(
-                        customer_id=str(self.customer["id"]),
-                        sender_type="assistant",
-                        message=card,
-                        whatsapp_message_id=wam_id,
-                        metadata={"trip_id": trip_id, "type": "driver_trip_card"},
-                    )
-                elif resp.get("outbox_id"):
-                    await self.repository.create_message(
-                        customer_id=str(self.customer["id"]),
-                        sender_type="assistant",
-                        message=card,
-                        metadata={
-                            "trip_id": trip_id,
-                            "type": "driver_trip_card",
-                            "outbox_id": resp["outbox_id"],
-                        },
-                    )
-            except WhatsAppClientError:
-                logger.warning("Failed to send trip card for trip %s", trip_id)
-
-        prompt = "هذه قائمة رحلاتك المسجلة"
-        await self.whatsapp.send_text(self.remoteJid, prompt)
-        await self.repository.create_message(
-            customer_id=str(self.customer["id"]),
-            sender_type="assistant",
-            message=prompt,
-            metadata={"type": "driver_trip_list_prompt"},
+        top_trips = trips[:5]
+        counts = await self.repository.count_pending_trip_selections(
+            [trip.get("trip_id") or trip.get("id") for trip in top_trips]
         )
+        items: list[tuple[str, dict[str, Any]]] = []
+        for trip in top_trips:
+            trip_id = trip.get("trip_id") or trip.get("id")
+            selection_count = int(counts.get(trip_id) or 0)
+            trip["selection_count"] = selection_count
+            items.append(
+                (
+                    format_trip_card(trip),
+                    {"trip_id": trip_id, "type": "driver_trip_card"},
+                )
+            )
+        items.append(("هذه قائمة رحلاتك المسجلة", {"type": "driver_trip_list_prompt"}))
+        await self._send_and_record_batch(items)
 
         return ToolResult(
             ok=True,
@@ -748,45 +751,32 @@ class FalzhToolHandlers:
             )
 
         action_label = "حذفها" if action_type == "DELETE" else "تعديلها"
-        for trip in trips[:5]:
-            trip_id = trip.get("trip_id") or trip.get("id")
-            selection_count = await self.repository.count_trip_selections(trip_id)
-            trip["selection_count"] = selection_count
-            card = format_trip_card(trip)
-            try:
-                resp = await self.whatsapp.send_text(self.remoteJid, card)
-                wam_id = resp.get("messages", [{}])[0].get("id")
-                if wam_id:
-                    await self.repository.create_message(
-                        customer_id=str(self.customer["id"]),
-                        sender_type="assistant",
-                        message=card,
-                        whatsapp_message_id=wam_id,
-                        metadata={"trip_id": trip_id, "type": "driver_trip_card", "action": action_type},
-                    )
-                elif resp.get("outbox_id"):
-                    await self.repository.create_message(
-                        customer_id=str(self.customer["id"]),
-                        sender_type="assistant",
-                        message=card,
-                        metadata={
-                            "trip_id": trip_id,
-                            "type": "driver_trip_card",
-                            "action": action_type,
-                            "outbox_id": resp["outbox_id"],
-                        },
-                    )
-            except WhatsAppClientError:
-                logger.warning("Failed to send trip card for trip %s", trip_id)
-
-        prompt = f"قم بالرد على بطاقة الرحلة التي تريد {action_label}"
-        await self.whatsapp.send_text(self.remoteJid, prompt)
-        await self.repository.create_message(
-            customer_id=str(self.customer["id"]),
-            sender_type="assistant",
-            message=prompt,
-            metadata={"type": "driver_trip_selection_prompt"},
+        top_trips = trips[:5]
+        counts = await self.repository.count_pending_trip_selections(
+            [trip.get("trip_id") or trip.get("id") for trip in top_trips]
         )
+        items: list[tuple[str, dict[str, Any]]] = []
+        for trip in top_trips:
+            trip_id = trip.get("trip_id") or trip.get("id")
+            selection_count = int(counts.get(trip_id) or 0)
+            trip["selection_count"] = selection_count
+            items.append(
+                (
+                    format_trip_card(trip),
+                    {
+                        "trip_id": trip_id,
+                        "type": "driver_trip_card",
+                        "action": action_type,
+                    },
+                )
+            )
+        items.append(
+            (
+                f"قم بالرد على بطاقة الرحلة التي تريد {action_label}",
+                {"type": "driver_trip_selection_prompt"},
+            )
+        )
+        await self._send_and_record_batch(items)
 
         return ToolResult(
             ok=True,
